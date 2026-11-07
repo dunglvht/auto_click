@@ -1054,6 +1054,9 @@ class Engine:
         brain = bitheroes.Brain(settings, time.monotonic())
         reason = "stopped"
         focus_script = None
+        speed_script = None
+        speed_now: Optional[int] = None   # the speed set in the game; None = not known (e.g. after a reload)
+        last_wait = ""                    # the last "waiting…" message logged
         last_click: Optional[tuple] = None
         tries = 0
         saved_unknown = False
@@ -1077,6 +1080,11 @@ class Engine:
                 reason = "stopped: set the page zoom (and screen scaling) to 100% (Ctrl+0)"
                 return
             focus_script = self._keep_focus(client, tab, True)
+            if settings.battle_speed > 1:
+                speed_script = self._speed_hook(client, tab)
+                self.log(f"Bot: the game runs at {settings.battle_speed}× speed. "
+                         "If it does not speed up, reload the game once (F5) while the bot runs. "
+                         "Switch off any other speed-hack add-on.")
             self.log("Bot started: " + " → ".join(bitheroes.MODES[m] for m in settings.modes) + ".")
             pending = None      # a look already taken (while waiting for a click to take effect)
             last_seen = None    # the screen of the previous look: act only on a screen seen twice
@@ -1109,6 +1117,9 @@ class Engine:
                         self.log("Bot: closing the frozen game and opening it again in a new window.")
                         tab = self._reopen_game(client, tab)
                         focus_script = self._keep_focus(client, tab, True, focus_script)
+                        if speed_script:
+                            speed_script = self._speed_hook(client, tab, speed_script)
+                    speed_now = None
                     last_reload = time.monotonic()
                     brain.last_known = frame_since = time.monotonic() + bitheroes.LOAD_S  # time to load
                     continue
@@ -1122,7 +1133,12 @@ class Engine:
                     if screen is not None:
                         self._stop.wait(bitheroes.LOOK_S)
                         continue
-                d = brain.decide(screen, now)
+                if speed_script and speed_now is None:
+                    # At the start and after a reload (a fresh page starts at 1×);
+                    # a failure is logged once, not on every look.
+                    self._set_speed(client, tab, settings.battle_speed)
+                    speed_now = settings.battle_speed
+                d = brain.decide(screen, now, **bitheroes.look_closer(img, screen))
                 self.notify("bot", {"status": brain.status(now), "screen": screen, "runs": dict(brain.runs)})
                 self.notify("status", "bot: " + brain.status(now) + (f" · {screen.replace('_', ' ')}" if screen else ""))
                 if screen is not None and screen not in bitheroes.WAITING:
@@ -1133,13 +1149,24 @@ class Engine:
                 if screen is None and now - brain.last_known > 15 * 60:
                     self.log("Bot: no known screen for 15 minutes; reloading the game.")
                     self._reload_game(client, tab)
+                    speed_now = None
                     brain.last_known = frame_since = time.monotonic() + bitheroes.LOAD_S
+                    continue
+                if d.key:
+                    last_click, tries, last_wait = None, 0, ""
+                    self.log(f"Bot: {d.what}.")
+                    self._press_key(client, tab, d.key)
+                    pending = self._await_change(client, tab, screen, d.settle)
                     continue
                 if d.point is None:
                     last_click, tries = None, 0
+                    if d.what and d.what != last_wait:
+                        self.log(f"Bot: {d.what}.")
+                    last_wait = d.what
                     self._stop.wait(1.0 if brain.mode else 5.0)
                     continue
-                key = (screen, d.point)
+                last_wait = ""
+                key = (screen, d.point, d.what if d.stays else "")   # ◀ ▶: progress shows in the text
                 tries = tries + 1 if key == last_click else 0
                 last_click = key
                 if tries == 0:
@@ -1157,18 +1184,10 @@ class Engine:
                 click = Step(delay_ms=0, x=d.point[0], y=d.point[1], hold_ms=80)
                 self._replay_step(client, tab, click, 80, PlayOptions(restore_scroll=False), 0)
                 self._park_pointer(client, tab)
-                # Look again quickly until the screen changes (the click worked). Some
-                # windows load data from the server first, so only after RECLICK_S
-                # without any change is the click taken as missed (and repeated).
-                until = time.monotonic() + max(d.settle, bitheroes.RECLICK_S)
-                while not self._stop.wait(bitheroes.LOOK_S) and time.monotonic() < until:
-                    try:
-                        look = self._bot_look(client, tab)
-                    except (BiDiError, ScriptError, TimeoutError, ValueError):
-                        break
-                    if look[1] != screen:
-                        pending = look
-                        break
+                if d.stays:
+                    self._stop.wait(d.settle)
+                    continue
+                pending = self._await_change(client, tab, screen, d.settle)
         except ConnectionLost:
             reason = "connection lost"
         except Exception as exc:  # noqa: BLE001
@@ -1182,11 +1201,83 @@ class Engine:
                         self._keep_focus(client, tab, False, focus_script)
                 except Exception:  # noqa: BLE001
                     pass
+                if speed_script is not None:
+                    self._speed_hook(client, tab, speed_script, on=False)
+                    self._set_speed(client, tab, 1)
             self.notify("status", "")
             self.notify("bot", {"status": "stopped", "screen": None, "runs": dict(brain.runs)})
             self._set_mode("idle")
             done = ", ".join(f"{bitheroes.MODES[m]} {n}" for m, n in brain.runs.items() if n)
             self.log(f"Bot {reason}." + (f" Runs: {done}." if done else ""))
+
+    def _await_change(self, client: BiDiClient, tab: str, screen: Optional[str], settle: float) -> Optional[tuple]:
+        """After a click or key: look again quickly until the screen changes
+        (it worked) and return that look. Some windows load data from the
+        server first, so only after RECLICK_S without any change is the click
+        taken as missed (and repeated)."""
+        until = time.monotonic() + max(settle, bitheroes.RECLICK_S)
+        while not self._stop.wait(bitheroes.LOOK_S) and time.monotonic() < until:
+            try:
+                look = self._bot_look(client, tab)
+            except (BiDiError, ScriptError, TimeoutError, ValueError):
+                return None
+            if look[1] != screen:
+                return look
+        return None
+
+    def _press_key(self, client: BiDiClient, tab: str, key: str) -> None:
+        """Press and release a key in the game. Keys sent to the tab do not
+        reach a cross-site frame, so they go to the game's frame itself: the
+        innermost frame that has focus, else the one with a canvas."""
+        target = tab
+        contexts = self._contexts_under(tab)
+        results = client.send_many([("script.callFunction", client.call_params(c, js.KEY_TARGET, sandbox=SANDBOX))
+                                    for c in contexts], timeout=5)
+        found = {}
+        for c, r in zip(contexts, results):
+            try:
+                found[c] = client.script_result(r) if isinstance(r, dict) else None
+            except ScriptError:
+                found[c] = None
+        for kind in ("focus", "canvas"):
+            hit = [c for c in contexts if found.get(c) == kind]
+            if hit:
+                target = hit[-1]
+                break
+        try:
+            client.send("input.performActions", {"context": target, "actions": [{
+                "type": "key", "id": "tab-autoclicker-keys",
+                "actions": [{"type": "keyDown", "value": key}, {"type": "pause", "duration": 80},
+                            {"type": "keyUp", "value": key}]}]}, timeout=10)
+        except (BiDiError, TimeoutError) as exc:
+            self.log(f"Bot: could not press the key ({exc}).")
+
+    def _speed_hook(self, client: BiDiClient, tab: str, script: Optional[str] = None,
+                    on: bool = True) -> Optional[str]:
+        """Bot: install the speed control (agent_js.SPEED) in the game's tab,
+        also for pages loaded later (reloads). Returns the preload script."""
+        if script:
+            try:
+                client.send("script.removePreloadScript", {"script": script}, timeout=5)
+            except Exception:  # noqa: BLE001
+                pass
+        if not on:
+            return None
+        try:
+            return client.send("script.addPreloadScript", {
+                "functionDeclaration": "() => { (" + js.SPEED + ")(0); }", "contexts": [tab]})["script"]
+        except (BiDiError, TimeoutError) as exc:
+            self.log(f"Bot: could not set up the game speed ({exc}).")
+            return None
+
+    def _set_speed(self, client: BiDiClient, tab: str, factor: int) -> bool:
+        """Set the game's speed in the tab and all its frames (in the page's own realm)."""
+        results = client.send_many([("script.callFunction", client.call_params(c, js.SPEED, factor, sandbox=None))
+                                    for c in self._contexts_under(tab)], timeout=5)
+        ok = any(isinstance(r, dict) and r.get("type") == "success" for r in results)
+        if not ok:
+            self.log(f"Bot: could not set the game speed to {factor}×.")
+        return ok
 
     def _bot_look(self, client: BiDiClient, tab: str) -> tuple:
         """One screenshot of the game: (image, screen name or None, a fingerprint)."""

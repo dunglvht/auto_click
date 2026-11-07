@@ -71,6 +71,33 @@ class BotWindow(tk.Toplevel):
             row=3, column=1, sticky="w", padx=6, pady=(6, 0))
         ttk.Label(opt, text="minutes, then start again", style="Hint.TLabel").grid(
             row=3, column=2, sticky="w", pady=(6, 0))
+        ttk.Label(opt, text="World Boss: start with").grid(row=5, column=0, sticky="w", pady=(6, 0))
+        self.wb_var = tk.StringVar(value=str(self.s.wb_players))
+        ttk.Spinbox(opt, from_=1, to=5, width=4, textvariable=self.wb_var).grid(
+            row=5, column=1, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(opt, text="players (waits in the lobby until they have joined; 1 = alone)",
+                  style="Hint.TLabel").grid(row=5, column=2, sticky="w", pady=(6, 0))
+        ttk.Label(opt, text="Game speed").grid(row=6, column=0, sticky="w", pady=(6, 0))
+        self.speed_var = tk.StringVar(value=str(self.s.battle_speed))
+        ttk.Spinbox(opt, from_=1, to=10, width=4, textvariable=self.speed_var).grid(
+            row=6, column=1, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(opt, text="× (1 = normal; switch off other speed-hack add-ons)", style="Hint.TLabel").grid(
+            row=6, column=2, sticky="w", pady=(6, 0))
+        self.pick_vars = {}
+        for row, (key, label, top, hint) in enumerate((
+                ("raid_number", "Raid", 30, "1 = the first raid in the Raid window"),
+                ("wb_boss", "World Boss", 30, "1 = the first boss when summoning"),
+                ("quest_zone", "Quest zone", 20, "1 = Bit Valley … 20 = Big Claw"),
+                ("gauntlet_difficulty", "Gauntlet difficulty", 999999, "near the top of its list, see README"),
+                ("trials_difficulty", "Trials difficulty", 999999, "the same, for the weeks with Trials"),
+                ("invasion_wave", "Invasion wave", 999, "one of the 5 highest waves")),
+                start=7):
+            ttk.Label(opt, text=label).grid(row=row, column=0, sticky="w", pady=(6, 0))
+            var = self.pick_vars[key] = tk.StringVar(value=str(getattr(self.s, key)))
+            ttk.Spinbox(opt, from_=0, to=top, width=7 if top > 999 else 4, textvariable=var).grid(
+                row=row, column=1, sticky="w", padx=6, pady=(6, 0))
+            ttk.Label(opt, text=hint + "; 0 = as shown", style="Hint.TLabel").grid(
+                row=row, column=2, sticky="w", pady=(6, 0))
 
         bar = ttk.Frame(pad)
         bar.pack(fill="x", pady=(12, 0))
@@ -90,7 +117,7 @@ class BotWindow(tk.Toplevel):
             w.destroy()
         for i, m in enumerate(self.s.order):
             ttk.Label(self.mode_list, text=f"{i + 1}.").grid(row=i, column=0, sticky="w")
-            ttk.Checkbutton(self.mode_list, text=MODES[m], variable=self.enabled[m], width=12).grid(
+            ttk.Checkbutton(self.mode_list, text=MODES[m], variable=self.enabled[m], width=17).grid(
                 row=i, column=1, sticky="w")
             ttk.Button(self.mode_list, text="▲", width=2, command=lambda i=i: self._move(i, -1)).grid(
                 row=i, column=2, padx=(4, 0))
@@ -116,6 +143,11 @@ class BotWindow(tk.Toplevel):
             s.quest_point = (int(self.qx_var.get()), int(self.qy_var.get()))
             s.rest_min = max(1, int(self.rest_var.get()))
             s.invasion_s = max(5, int(self.inv_var.get()))
+            s.wb_players = min(5, max(1, int(self.wb_var.get())))
+            s.battle_speed = min(10, max(1, int(self.speed_var.get())))
+            limits = {"quest_zone": 20, "raid_number": 30, "wb_boss": 30, "invasion_wave": 999}
+            for key, var in self.pick_vars.items():
+                setattr(s, key, max(0, min(limits.get(key, 999999), int(var.get().replace(",", "")))))
         except ValueError:
             pass
         self.app.settings["bot"] = s.to_dict()

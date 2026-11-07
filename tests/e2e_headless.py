@@ -121,7 +121,7 @@ def main() -> int:
     p1 = serve({"/top.html": TOP.format(p2=p2), "/game.html": GAME})
     port = free_port()
     proc = subprocess.Popen([binary, "--headless", "--no-remote", "--profile", profile,
-                             "--remote-debugging-port", str(port), "about:blank"],
+                             "--remote-debugging-port", str(port), *firefox.windows_args(), "about:blank"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     c = Checker()
     events: queue.Queue = queue.Queue()
@@ -163,9 +163,9 @@ def main() -> int:
                     print("        log:", payload)
 
         url = f"http://127.0.0.1:{p1}/top.html"
-        a = cl.send("browsingContext.create", {"type": "tab"})["context"]
+        a = cl.send("browsingContext.create", {"type": "tab", "background": True})["context"]
         cl.send("browsingContext.navigate", {"context": a, "url": url, "wait": "complete"})
-        b = cl.send("browsingContext.create", {"type": "tab"})["context"]
+        b = cl.send("browsingContext.create", {"type": "tab", "background": True})["context"]
         cl.send("browsingContext.navigate", {"context": b, "url": url, "wait": "complete"})
         time.sleep(0.5)
         frame = cl.send("browsingContext.getTree", {"root": a})["contexts"][0]["children"][0]["context"]
@@ -255,7 +255,7 @@ def main() -> int:
                 f"fixed interval sleeps between rounds (gaps {gaps} ms)")
 
         print("Image checks on a canvas game (game mode)")
-        g = cl.send("browsingContext.create", {"type": "tab"})["context"]
+        g = cl.send("browsingContext.create", {"type": "tab", "background": True})["context"]
         cl.send("browsingContext.navigate", {"context": g, "url": f"http://127.0.0.1:{p1}/game.html",
                                               "wait": "complete"})
         cl.send("browsingContext.activate", {"context": g})
@@ -509,11 +509,7 @@ def main() -> int:
             eng.disconnect()
         except Exception:  # noqa: BLE001
             pass
-        proc.terminate()
-        try:
-            proc.wait(15)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        firefox.stop(proc)
         shutil.rmtree(profile, ignore_errors=True)
     print("\nALL CHECKS PASSED" if not c.failed else f"\n{c.failed} CHECK(S) FAILED")
     return 1 if c.failed else 0

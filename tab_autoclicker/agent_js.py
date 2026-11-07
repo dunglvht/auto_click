@@ -263,6 +263,40 @@ FOCUS_CYCLE = r"""(phase) => {
           visible: document.visibilityState, blocked: st ? (st.blocked || 0) : 0};
 }"""
 
+# Game speed (the Bit Heroes bot's "game speed"): the page's clocks run
+# ``factor`` times faster. Runs in the page's own realm (not the sandbox), so
+# the game sees the faster performance.now() / Date.now(), timers and
+# animation-frame times. Changing the factor continues the clock from where it
+# is, so time never jumps back. Called with 0 it only installs (at 1×).
+SPEED = r"""(factor) => {
+  const G = globalThis;
+  let st = G.__tacSpeed;
+  if (!st) {
+    const perf = G.performance, realPerf = perf.now.bind(perf), realDateNow = Date.now;
+    const rST = G.setTimeout, rSI = G.setInterval, rRAF = G.requestAnimationFrame;
+    st = {factor: 1, real0: realPerf(), virt0: realPerf()};
+    const vnow = () => st.virt0 + (realPerf() - st.real0) * st.factor;
+    st.set = (f) => { const v = vnow(); st.real0 = realPerf(); st.virt0 = v; st.factor = f; };
+    const dateDelta = realDateNow.call(Date) - realPerf();
+    perf.now = function now() { return vnow(); };
+    Date.now = function now() { return Math.floor(dateDelta + vnow()); };
+    G.setTimeout = function setTimeout(fn, ms, ...args) { return rST.call(G, fn, (+ms || 0) / st.factor, ...args); };
+    G.setInterval = function setInterval(fn, ms, ...args) { return rSI.call(G, fn, (+ms || 0) / st.factor, ...args); };
+    if (rRAF) G.requestAnimationFrame = function requestAnimationFrame(cb) { return rRAF.call(G, () => cb(vnow())); };
+    Object.defineProperty(G, '__tacSpeed', {value: st, enumerable: false});
+  }
+  if (factor) st.set(Math.max(0.1, Math.min(20, +factor)));
+  return st.factor;
+}"""
+
+# Where a key press should go: "focus" for the innermost frame with the
+# keyboard focus, "canvas" for a frame with a canvas (a game), else null.
+KEY_TARGET = r"""() => {
+  const a = document.activeElement;
+  if (document.hasFocus() && !(a && /^i?frame$/i.test(a.tagName))) return 'focus';
+  return document.querySelector('canvas') ? 'canvas' : null;
+}"""
+
 KEEP_FOCUS = r"""(on, force) => {
   const G = globalThis;
   if (!G.__tacFocus) {

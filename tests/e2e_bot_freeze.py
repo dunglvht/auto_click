@@ -59,7 +59,7 @@ def main() -> int:
     p = serve(Counting({"/hang.html": HANG}))
     port = free_port()
     proc = subprocess.Popen([binary, "--headless", "--no-remote", "--profile", profile,
-                             "--remote-debugging-port", str(port), "about:blank"],
+                             "--remote-debugging-port", str(port), *firefox.windows_args(), "about:blank"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     c = Checker()
     logs: queue.Queue = queue.Queue()
@@ -100,11 +100,7 @@ def main() -> int:
         try:
             eng.disconnect()
         finally:
-            proc.terminate()
-            try:
-                proc.wait(10)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+            firefox.stop(proc, 10)
             shutil.rmtree(profile, ignore_errors=True)
     for line in seen:
         print("        log:", line)

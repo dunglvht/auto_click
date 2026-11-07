@@ -95,11 +95,46 @@ order, and press **Start bot**.
   presses the menu buttons between runs: Rerun (Quest, Raid), Play, Fight
   and Accept (PvP, Gauntlet, Invasion), Summon, Start and Regroup (World Boss).
 - **Invasion** goes on wave after wave, but the loot drops within about 30
-  seconds. So the bot fights for 30 seconds (a setting), then switches
-  autopilot off (the battle's X only works then), leaves and confirms, and
-  collects the loot on the result screen. Autopilot stays off in the game
-  after that, so the bot switches it back on whenever it finds it off, in
-  battles and in dungeons.
+  seconds. So the bot fights for 30 seconds of game time (a setting), then
+  presses **Esc**, confirms "quit this battle", and collects the loot on the
+  result screen. If Esc brings up no popup (tried twice), it switches
+  autopilot off instead (the battle's X only works then), presses the X and
+  confirms, and uses that way for the rest of the session. Autopilot then
+  stays off in the game, so the bot switches it back on whenever it finds it
+  off, in battles and in dungeons.
+- **Which raid, World Boss and zone:** "Raid N" and "World Boss N" make the
+  bot press ◀ / ▶ in the Raid and World Boss summon windows until the Nth one
+  shows (it reads the row of dots under the picture; the green dot is the one
+  shown). "Quest zone N" does the same on the zone map, from 1 (Bit Valley)
+  to 20 (Big Claw); it knows the zones by their titles. The dungeon in the
+  zone is still the "Quest dungeon at" point. 0 plays whatever the game
+  shows. A raid that doesn't exist or a zone that isn't open yet is noted in
+  the log once, and the bot plays the one shown.
+- **Gauntlet / Trials difficulty and Invasion wave:** set a number and the
+  bot reads the one in the window (Difficulty or Wave box) before Play. If
+  it differs, it opens the box's list and clicks the nearest value. Gauntlet
+  and Trials (every other week, same icon) each have their own setting; their
+  list first shows ranges ("12,488 - 13,494"), then the range's values, 10
+  apart. The bot only clicks among the five rows shown when a list opens:
+  once the game's list is scrolled, its clicks often land on another row or
+  on none. That covers the five highest waves, and for Gauntlet / Trials the
+  five hardest ranges and the top 40 of each range. Anything further down
+  (the log says so), set once in the game, which keeps it. After a pick it
+  checks the window again and notes it if the game set something else. 0
+  leaves it as set in the game.
+- **Dialogs:** a character talking (a text box with a yellow ▶, e.g. the
+  first meeting with a boss, which a new browser shows again) is clicked
+  through.
+- **World Boss team:** "World Boss: start with N players" makes the bot wait
+  in the lobby until N players are in the team (it counts the rows without
+  an Invite button), then press Start. A boss with a smaller team starts when
+  the team is full. 1 (the default) starts at once.
+- **Game speed:** above 1, the game runs that many times faster while the
+  bot plays (the bot speeds up the game page's clocks and timers), menus
+  included. Invasion's fight time is game time, so at 3× it takes 10
+  seconds. If the game doesn't speed up, reload it once while the bot runs.
+  Switch off any other speed-hack add-on, or the speeds multiply. When the
+  bot stops, the game goes back to normal speed.
 - It looks at the game and recognises the screen that is showing: four times
   a second while menus change (it acts as soon as the next screen is there),
   once a second during fights. A click that changes nothing for 4 seconds
@@ -120,8 +155,8 @@ order, and press **Start bot**.
   new window of the right size. Keep the game in its own window for this.
 - The game page must be **854 × 545** (the bot resizes the window; it can't
   while the window is maximized) at 100 % zoom.
-- Costs (PvP tickets, Gauntlet tokens), the Gauntlet difficulty, the World Boss
-  tier and your teams are whatever you last chose in the game. Settings: Raid
+- Costs (PvP tickets, Gauntlet tokens), the World Boss tier and difficulty,
+  and your teams are whatever you last chose in the game. Settings: Raid
   difficulty, which PvP opponent row to fight, which Quest dungeon to click on
   the zone map, and the rest time.
 
@@ -317,12 +352,17 @@ Examples:
 - `tab_autoclicker/bidi.py` is a small WebDriver BiDi client.
 - `tab_autoclicker/firefox.py` finds profiles and launches Firefox.
 - `tab_autoclicker/agent_js.py` holds the scripts injected into the page, in an
-  isolated sandbox the page cannot see.
+  isolated sandbox the page cannot see. The exception is the bot's battle
+  speed (`SPEED`), which must run in the page's own realm to change its clocks.
 - `tests/test_bitheroes.py` checks the bot's screen recognition and decisions,
   and `tests/test_imaging.py` the image matching. Neither needs a browser.
 - `tests/e2e_headless.py` is a self-test. It starts its own hidden Firefox
   with a temporary profile. It checks picking, recording and background replay.
-  It also checks image checks and game mode on a small canvas game.
+  It also checks image checks and game mode on a small canvas game. It needs
+  tab switching, which hangs in Firefox on Windows, so run it on Linux.
+- `tests/e2e_speed.py` checks the bot's game speed and Esc key in a hidden
+  Firefox, and `tests/e2e_bot_freeze.py` its recovery from a frozen game.
+  Both run on Linux and Windows.
 
 Settings and the last recording are saved in
 `~/.config/tab-autoclicker/settings.json`, and presets in
