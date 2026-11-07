@@ -11,19 +11,63 @@ It also works for browser games such as Bit Heroes. See
 It uses Firefox's built-in remote-control protocol (WebDriver BiDi). Clicks
 are generated inside Firefox for that one tab, so the page receives real
 ("trusted") mouse events and the operating system's pointer never moves.
-Nothing depends on X11 tools, so it should also work on Wayland, but it was
-only tested on X11.
+It runs on Linux and Windows. On Linux nothing depends on X11 tools, so it
+should also work on Wayland, but it was only tested on X11.
 
 ## Setup
 
-Requirements: Linux, Python 3.9+, Tk and a recent Firefox. It was tested with
-Firefox 156 (snap) and Python 3.10 on Ubuntu 22.04.
+Requirements: Python 3.9+ with Tk, and a recent Firefox. Pillow and numpy
+are optional but recommended: without them the app reads screenshots much
+more slowly, which the Bit Heroes bot notices.
+
+### Linux
+
+Tested with Firefox 156 (snap) and Python 3.10 on Ubuntu 22.04.
 
 ```bash
-sudo apt install python3-tk          # if Tk is missing
-pip install -r requirements.txt      # websocket-client
+sudo apt install python3-tk                  # if Tk is missing
+pip install -r requirements.txt pillow numpy
 ./autoclicker.py
 ```
+
+### Windows
+
+Tested on Windows 11 with Firefox 159 and Python 3.15.
+
+1. Install Python from [python.org](https://www.python.org/downloads/) (Tk is
+   included) and tick **Add python.exe to PATH** in the installer.
+2. In PowerShell, in the app's folder:
+
+   ```powershell
+   pip install -r requirements.txt pillow numpy
+   python .\autoclicker.py
+   ```
+
+   If `python` opens the Microsoft Store instead, Windows' Store shortcut is
+   in the way: switch off "App execution aliases" for python in Settings →
+   Apps → Advanced app settings, or run Python by its full path, for example
+   `& "$env:LOCALAPPDATA\Programs\Python\Python315\python.exe" .\autoclicker.py`.
+3. Set Windows display scaling to 100% (Settings → System → Display → Scale)
+   if you use image checks or the Bit Heroes bot: they compare the game with
+   pictures taken at 1×. The bot stops with a message if the scaling isn't
+   100%. If you'd rather keep your scaling, set `layout.css.devPixelsPerPx` to
+   `1` in Firefox's `about:config` for that profile instead (Firefox then
+   looks smaller).
+
+What's different on Windows:
+- **Launch Firefox** finds Firefox in the registry or `Program Files`, and
+  your profiles in `%APPDATA%\Mozilla\Firefox`. The separate Auto Clicker
+  profile is kept in `%LOCALAPPDATA%\tab-autoclicker\firefox-profile`.
+- When the app starts Firefox, it also switches off
+  `widget.windows.window_occlusion_tracking.enabled` in that profile's
+  `user.js`. Otherwise Windows Firefox pauses a game whose window is covered
+  by other windows. If you start Firefox yourself
+  (`"C:\Program Files\Mozilla Firefox\firefox.exe" --remote-debugging-port 9222`),
+  set it to `false` in `about:config` once.
+- **Show tab** may not bring the tab to the front: Firefox waits for its
+  window to get the keyboard focus, which Windows does not give to it while
+  another program is in front. It gives up after 30 seconds.
+- Settings and presets are in `C:\Users\<you>\.config\tab-autoclicker\`.
 
 ## How to use
 
@@ -71,7 +115,8 @@ Keep one set of clicks for each game mode, for example "Dungeon", "PvP" and
   If you switch away, it asks first. To update the preset, save it again under
   the same name.
 
-Presets are kept in `~/.config/tab-autoclicker/presets/`, one JSON file each.
+Presets are kept in `~/.config/tab-autoclicker/presets/` (on Windows
+`C:\Users\<you>\.config\tab-autoclicker\presets\`), one JSON file each.
 They use the same format as **Save…**/**Open…** files, so you can copy them to
 another computer or share them.
 
@@ -154,7 +199,8 @@ order, and press **Start bot**.
   doesn't even reload; then the bot closes it and opens the game again in a
   new window of the right size. Keep the game in its own window for this.
 - The game page must be **854 × 545** (the bot resizes the window; it can't
-  while the window is maximized) at 100 % zoom.
+  while the window is maximized) at 100 % zoom, and on Windows at 100 %
+  display scaling.
 - Costs (PvP tickets, Gauntlet tokens), the World Boss tier and difficulty,
   and your teams are whatever you last chose in the game. Settings: Raid
   difficulty, which PvP opponent row to fight, which Quest dungeon to click on
@@ -283,8 +329,10 @@ Examples:
 - Keep the game window the same size, and keep the zoom level unchanged
   (Ctrl+0 resets it). Both click positions and image checks depend on it.
 - Pick image-check regions without numbers, timers or animations.
-- On a desktop without a compositor, a completely covered window counts as
-  hidden, and the game freezes. This doesn't happen on normal Ubuntu GNOME.
+- On a Linux desktop without a compositor, a completely covered window counts
+  as hidden, and the game freezes. This doesn't happen on normal Ubuntu GNOME.
+  On Windows, the same happens unless window occlusion tracking is off (see
+  [Windows](#windows)).
 - Game rules: most online games, including Kongregate games, forbid bots and
   auto clickers, and a page can tell that Firefox is remote-controlled.
   Use this at your own risk.
@@ -315,6 +363,9 @@ Examples:
 - **Reopen my tabs** asks Firefox, once, to restore the previous session on
   the next start. This is the same one-time setting Firefox uses for its own
   restarts.
+- On Windows, starting Firefox also adds
+  `widget.windows.window_occlusion_tracking.enabled = false` to `user.js`
+  (see [Windows](#windows)).
 - While connected, the app asks Firefox to leave page dialogs such as
   `alert()` and "Leave page?" for you to answer. By default, remote control
   would dismiss them automatically.
@@ -350,9 +401,10 @@ Examples:
 - `tab_autoclicker/imaging.py` decodes PNG screenshots and finds images in them.
   It needs only the standard library, and uses numpy if installed.
 - `tab_autoclicker/bidi.py` is a small WebDriver BiDi client.
-- `tab_autoclicker/firefox.py` finds profiles and launches Firefox.
+- `tab_autoclicker/firefox.py` finds profiles and launches Firefox, on Linux
+  and Windows.
 - `tab_autoclicker/agent_js.py` holds the scripts injected into the page, in an
-  isolated sandbox the page cannot see. The exception is the bot's battle
+  isolated sandbox the page cannot see. The exception is the bot's game
   speed (`SPEED`), which must run in the page's own realm to change its clocks.
 - `tests/test_bitheroes.py` checks the bot's screen recognition and decisions,
   and `tests/test_imaging.py` the image matching. Neither needs a browser.
@@ -363,7 +415,14 @@ Examples:
 - `tests/e2e_speed.py` checks the bot's game speed and Esc key in a hidden
   Firefox, and `tests/e2e_bot_freeze.py` its recovery from a frozen game.
   Both run on Linux and Windows.
+- `tests/make_glyphs.py` rebuilds the templates the bot reads the game's
+  numbers with (`tab_autoclicker/bitheroes/glyphs.json`) from the screenshots
+  in `tests/data/`.
+
+Run a test with `python3 tests/<name>.py` on Linux, or
+`python .\tests\<name>.py` on Windows.
 
 Settings and the last recording are saved in
 `~/.config/tab-autoclicker/settings.json`, and presets in
-`~/.config/tab-autoclicker/presets/`.
+`~/.config/tab-autoclicker/presets/`. On Windows that is
+`C:\Users\<you>\.config\tab-autoclicker\`.
