@@ -23,7 +23,10 @@ LISTS = {   # screenshot: the numbers in its five list rows
     "gauntlet_values_top.png": ["13,494", "13,484", "13,474", "13,464", "13,454"],
     "gauntlet_values_dragged.png": ["13,054", "13,044", "13,034", "13,024", "13,014"],
 }
-FIELDS = {"gauntlet_window.png": "14,578", "invasion_window.png": "58"}
+FIELDS = {"gauntlet_window.png": "14,578", "invasion_window.png": "58", "invasion_cost_1.png": "62",
+          "invasion_wave_60.png": "60", "invasion_wave_59.png": "59"}
+COSTS = {f"invasion_cost_{n}.png": str(n) for n in range(1, 6)}   # the COST box
+COST_LISTS = {"cost_list.png": ["1", "2", "3", "4", "5"]}
 
 
 def main() -> int:
@@ -36,6 +39,15 @@ def main() -> int:
     for name, text in FIELDS.items():
         img = imaging.decode_png(open(os.path.join(DATA, name), "rb").read())
         samples.append((name, text, bh.glyphs(img, bh.FIELD_BOX)))
+    for name, text in COSTS.items():
+        img = imaging.decode_png(open(os.path.join(DATA, name), "rb").read())
+        samples.append((name, text, bh.glyphs(img, bh.COST_BOX)))
+    for name, texts in COST_LISTS.items():
+        img = imaging.decode_png(open(os.path.join(DATA, name), "rb").read())
+        for k, text in enumerate(texts):
+            top = int(bh.LIST_ROW_TOP + bh.LIST_ROW_PITCH * k)
+            samples.append((name, text, bh.glyphs(img, (bh.COST_LIST_X[0], top + 3, bh.COST_LIST_X[1],
+                                                         top + bh.LIST_ROW_H - 3))))
     templates = {}
     for name, text, lines in samples:
         if not lines or len(lines[0]) != len(text):

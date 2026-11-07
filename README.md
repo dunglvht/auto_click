@@ -1,24 +1,47 @@
-# Firefox Tab Auto Clicker
+# Bit Heroes Auto Bot
 
-A small desktop app that records your clicks in **one Firefox tab** and replays
-them **without moving your mouse**. While it plays, you can keep using the
-mouse, other windows and other Firefox tabs. The target tab can stay in the
-background.
+A bot that plays **Bit Heroes** (the browser version, on Kongregate or
+web.bitheroesgame.com) in Firefox **without moving your mouse**. It runs your
+Raids, World Bosses, Invasion, Gauntlet / Trials, PvP and Quest dungeons one
+after another, clicks through the menus between runs, and lets the game's own
+autopilot do the fighting. While it plays, you can keep using your computer,
+other windows and other Firefox tabs.
 
-It also works for browser games such as Bit Heroes. See
-[Browser games](#browser-games-such-as-bit-heroes).
+It is also a general **auto clicker for one Firefox tab**: record clicks once
+and replay them, with image checks that wait for buttons to show up. See
+[Recording your own clicks](#recording-your-own-clicks).
 
-It uses Firefox's built-in remote-control protocol (WebDriver BiDi). Clicks
-are generated inside Firefox for that one tab, so the page receives real
-("trusted") mouse events and the operating system's pointer never moves.
-It runs on Linux and Windows. On Linux nothing depends on X11 tools, so it
-should also work on Wayland, but it was only tested on X11.
+Runs on **Windows** and **Linux**.
 
-## Setup
+![The game window with the Raid window open](docs/images/3-raid-window.png)
 
-Requirements: Python 3.9+ with Tk, and a recent Firefox. Pillow and numpy
-are optional but recommended: without them the app reads screenshots much
-more slowly, which the Bit Heroes bot notices.
+## Install
+
+You need Python 3.9 or newer (with Tk) and a recent Firefox.
+
+### Windows
+
+Tested on Windows 11 with Firefox 159 and Python 3.15.
+
+1. Install Python from [python.org](https://www.python.org/downloads/). Tk is
+   included. In the installer, tick **Add python.exe to PATH**.
+2. Open PowerShell in the app's folder (in Explorer: Shift + right-click the
+   folder → "Open PowerShell window here") and run:
+
+   ```powershell
+   pip install -r requirements.txt pillow numpy
+   python .\autoclicker.py
+   ```
+
+   If `python` opens the Microsoft Store instead, Windows' Store shortcut is
+   in the way: switch off "App execution aliases" for python in Settings →
+   Apps → Advanced app settings, or run Python by its full path, for example
+   `& "$env:LOCALAPPDATA\Programs\Python\Python315\python.exe" .\autoclicker.py`.
+3. Set Windows display scaling to **100%** (Settings → System → Display →
+   Scale). The bot compares the game with pictures taken at 100% and stops
+   with a message otherwise. To keep your scaling instead, set
+   `layout.css.devPixelsPerPx` to `1` in Firefox's `about:config` (Firefox
+   then looks smaller).
 
 ### Linux
 
@@ -30,44 +53,155 @@ pip install -r requirements.txt pillow numpy
 ./autoclicker.py
 ```
 
-### Windows
+Pillow and numpy are optional, but without them the bot reads the game's
+screen much more slowly.
 
-Tested on Windows 11 with Firefox 159 and Python 3.15.
+## Quick start
 
-1. Install Python from [python.org](https://www.python.org/downloads/) (Tk is
-   included) and tick **Add python.exe to PATH** in the installer.
-2. In PowerShell, in the app's folder:
+![The main window](docs/images/1-main-window.png)
 
-   ```powershell
-   pip install -r requirements.txt pillow numpy
-   python .\autoclicker.py
-   ```
+1. **Start Firefox with remote control.** Choose your Firefox profile (the
+   one you play Bit Heroes with, so you are logged in) and press **Launch
+   Firefox** ①. If Firefox is already open, the app asks you to quit it first
+   (menu ☰ → Quit) and then restarts it with your tabs. While remote control
+   is on, Firefox shows a striped address bar and a robot icon.
+2. **Open the game in its own window.** Press **Open game window…** ② and
+   keep the address it suggests (Bit Heroes on Kongregate), or paste another
+   game link. Log in if the game asks, and wait for the town. Don't maximize
+   or minimize this window; other windows may cover it. If the game is
+   already open in a tab, press **Pick its tab by clicking** and click in the
+   game instead.
+3. **Choose what to play** on the **Bit Heroes bot** tab. Tick the modes ③
+   and put them in order with ▲ ▼. The bot plays the first one until it runs
+   out (energy, shards, tickets…), then the next, and so on. Each mode's
+   options are on its row ④, the general ones below ⑤ (see
+   [Bot settings](#bot-settings)). The defaults work.
+4. **Press Start bot** ⑥ (or F9). The bot resizes the game window to the
+   size it knows (854 × 545) and starts. The line next to the button shows
+   what it is doing, each mode's row counts its runs, and the log ⑦ lists
+   every step.
 
-   If `python` opens the Microsoft Store instead, Windows' Store shortcut is
-   in the way: switch off "App execution aliases" for python in Settings →
-   Apps → Advanced app settings, or run Python by its full path, for example
-   `& "$env:LOCALAPPDATA\Programs\Python\Python315\python.exe" .\autoclicker.py`.
-3. Set Windows display scaling to 100% (Settings → System → Display → Scale)
-   if you use image checks or the Bit Heroes bot: they compare the game with
-   pictures taken at 1×. The bot stops with a message if the scaling isn't
-   100%. If you'd rather keep your scaling, set `layout.css.devPixelsPerPx` to
-   `1` in Firefox's `about:config` for that profile instead (Firefox then
-   looks smaller).
+To stop, press **Stop bot**, F9 or Esc. The app remembers your choices, so
+next time it's Launch Firefox, Open game window, Start bot.
 
-What's different on Windows:
-- **Launch Firefox** finds Firefox in the registry or `Program Files`, and
-  your profiles in `%APPDATA%\Mozilla\Firefox`. The separate Auto Clicker
-  profile is kept in `%LOCALAPPDATA%\tab-autoclicker\firefox-profile`.
-- When the app starts Firefox, it also switches off
-  `widget.windows.window_occlusion_tracking.enabled` in that profile's
-  `user.js`. Otherwise Windows Firefox pauses a game whose window is covered
-  by other windows. If you start Firefox yourself
-  (`"C:\Program Files\Mozilla Firefox\firefox.exe" --remote-debugging-port 9222`),
-  set it to `false` in `about:config` once.
-- **Show tab** may not bring the tab to the front: Firefox waits for its
-  window to get the keyboard focus, which Windows does not give to it while
-  another program is in front. It gives up after 30 seconds.
-- Settings and presets are in `C:\Users\<you>\.config\tab-autoclicker\`.
+The bot leaves your teams and the World Boss tier and difficulty to you: set
+them once in the game, which remembers them.
+
+## Bot settings
+
+Each mode has its options on its own row. 0 means "whatever the game has
+set".
+
+| Mode | Option | What it does |
+| --- | --- | --- |
+| Gauntlet / Trials | Gauntlet, Trials | The number for the Difficulty box. Gauntlet and Trials alternate weekly and have a setting each. |
+| | Tokens | Tokens per run (1–5), set in the COST box. Default 5. |
+| Quest | Zone | Which zone, from 1 (Bit Valley) to 20 (Big Claw). |
+| | Dungeon | **Pick on map…**: click the dungeon to play in that zone (see below). |
+| | Difficulty | Normal, Hard or Heroic, for dungeons that ask (all but the zone's boss). |
+| World Boss | Boss # | Which boss to summon (1 = the first). |
+| | Players | Wait in the lobby until this many players have joined (1 = start alone). |
+| Raid | Raid # | Which raid to summon (1 = the first). |
+| | Difficulty | Normal, Hard or Heroic. |
+| Invasion | Wave | The number for the Wave box. |
+| | Badges | Badges per run (1–5). Default 5. |
+| | Fight s | Seconds of fighting per run (enough for the loot); then the bot leaves the battle and collects. |
+| PvP | Opponent | Which row of the opponent list to fight (1 = the top, usually the weakest). |
+| | Tickets | Tickets per fight (1–5). Default 5. |
+| All | When all are out, rest | Minutes to wait when every mode is out, before starting again. |
+| | Game speed | Runs the whole game this many times faster (1 = normal). Switch off any other speed-hack add-on, or the speeds multiply. |
+
+When one mode runs out, the bot answers **No** to the offer to buy more and
+goes to the next. It never spends gems. A cost of 5 needs 5 tickets (or
+tokens, badges) left: with fewer, the game says "not enough", and the bot
+counts that mode as out until its rest is over.
+
+**Raid and World Boss number:** these windows show one raid or boss at a
+time (see the picture at the top). The bot presses the arrows until the
+green dot under the picture is the one you chose.
+
+**Quest zone and dungeon:** the bot recognises the zone by its title and
+walks there with the arrows. Then it clicks the dungeon you picked for that
+zone. Press **Pick on map…**, choose the zone ①, and click the dungeon ②.
+Each zone keeps its own pick, and a zone you haven't picked in gets the
+default spot (430, 300), the middle of the map.
+
+![The dungeon picker](docs/images/2-dungeon-picker.png)
+
+Each zone has three dungeons with three stars (D1–D3), which ask for a
+difficulty (the Quest **Difficulty** option), and a red one with a single
+star, the zone's boss (D4).
+
+**Gauntlet / Trials difficulty, Invasion wave and costs:** before pressing
+Play, the bot reads the Difficulty (or Wave) box and the COST box. If one
+isn't what you set, it opens that box's list and clicks yours. The game's
+lists only take clicks reliably on the rows shown when they open, so the bot
+only picks from those: costs 1–5, the five highest waves, and for
+Gauntlet / Trials the five hardest ranges and the top 40 of each range. For
+anything further down, the log says so; set it once in the game, which keeps
+it.
+
+![The Gauntlet window](docs/images/5-gauntlet-difficulty.png)
+
+## What the bot does by itself
+
+- **Menus between runs:** Rerun (Quest, Raid); Play, Fight and Accept (PvP,
+  Gauntlet / Trials, Invasion); a dungeon's difficulty; Summon, Start and
+  Regroup (World Boss). The
+  fighting is left to the game's autopilot, and the bot switches autopilot
+  back on whenever it finds it off.
+- **Invasion** goes on wave after wave, but the loot drops early. After the
+  set fight time (game time: at 3× speed, 30 s take 10 s) the bot presses
+  **Esc**, confirms "quit this battle" and collects the loot. If the game
+  ignores Esc, it switches autopilot off, presses the battle's X and confirms.
+- **Popups:** "Are you still there?", "Disconnected" (Reconnect), the daily
+  reward, "Your team is not full" (Yes), and character dialogs (the text box
+  with a yellow arrow, e.g. the first meeting with a boss, which a new
+  browser shows again).
+- **Missed clicks:** a click that changes nothing for 4 seconds is repeated,
+  after resetting the input.
+- **Frozen game:** battles and loading screens always move. If the picture
+  stays still for 90 seconds, the game has hung, and the bot reloads it. A
+  hung page often won't even reload; then the bot closes it and opens the
+  game again in a new window of the right size.
+- **Unknown screens** (battles, loading) are left alone. After 3 minutes on
+  a screen it doesn't know, the bot saves a screenshot in the `bot-screens`
+  folder next to the settings (see [Files](#files)); after 15 minutes it
+  reloads the game.
+
+## If something goes wrong
+
+- **The bot stops at once:** the log says why. Usually the game window is
+  maximized (so it can't be resized), or the zoom or display scaling isn't
+  100% (press Ctrl+0 in Firefox).
+- **The bot waits on a screen and does nothing:** it doesn't know that
+  screen. Press Stop and look in the `bot-screens` folder; such a screenshot
+  is what is needed to teach the bot that screen.
+- **The game froze while its window was covered (Windows):** the app switches
+  this off when it starts Firefox. If you started Firefox yourself, set
+  `widget.windows.window_occlusion_tracking.enabled` to `false` in
+  `about:config` once.
+- **"Firefox is busy":** Firefox allows only one remote-control session. The
+  app offers to restart Firefox; your tabs are reopened.
+- **The game doesn't speed up:** reload it once (F5) while the bot runs.
+
+Most online games, Kongregate's included, forbid bots, and a page can tell
+that Firefox is remote-controlled. Use this at your own risk.
+
+---
+
+# Recording your own clicks
+
+The rest of this page is about the general auto clicker: recording clicks in
+any Firefox tab and replaying them, with image checks, presets and a flow
+chart. It is on the app's **Click recorder** tab. The Bit Heroes bot above
+doesn't need any of it.
+
+It uses Firefox's built-in remote-control protocol (WebDriver BiDi). Clicks
+are generated inside Firefox for that one tab, so the page receives real
+("trusted") mouse events and the operating system's pointer never moves. On
+Linux nothing depends on X11 tools, so it should also work on Wayland, but it
+was only tested on X11.
 
 ## How to use
 
@@ -76,9 +210,10 @@ What's different on Windows:
    app asks you to quit Firefox (menu ☰ → Quit, or Ctrl+Q). It then restarts
    Firefox with remote control and reopens your tabs. While remote control is
    on, Firefox shows a striped address bar and a robot icon.
-2. **Target tab**: press **Pick tab by clicking**, then click anywhere inside
-   the page you want to automate. That click is swallowed, so it does not press
-   anything. You can also use **Choose from list**.
+2. **Target tab**: press **Pick its tab by clicking** (in the Game section),
+   then click anywhere inside the page you want to automate. That click is
+   swallowed, so it does not press anything. You can also use **Choose from
+   list**. Then switch to the **Click recorder** tab.
 3. **Clicks**: press **Record** (F8) and click in the target tab as usual.
    Left, middle and right clicks, double clicks and drags are recorded,
    including clicks inside iframes. Press **Stop recording** when done.
@@ -130,91 +265,13 @@ check's settings, and choose which preset comes next.
 - Before playing, the app asks you to save unsaved changes, because switching
   presets replaces the steps on screen.
 
-## Bit Heroes bot
-
-For Bit Heroes there is a ready-made bot, so you don't have to record
-anything. Press **Bit Heroes bot…**, tick the modes you want, put them in
-order, and press **Start bot**.
-
-- The game's own autopilot does the exploring and fighting. The bot only
-  presses the menu buttons between runs: Rerun (Quest, Raid), Play, Fight
-  and Accept (PvP, Gauntlet, Invasion), Summon, Start and Regroup (World Boss).
-- **Invasion** goes on wave after wave, but the loot drops within about 30
-  seconds. So the bot fights for 30 seconds of game time (a setting), then
-  presses **Esc**, confirms "quit this battle", and collects the loot on the
-  result screen. If Esc brings up no popup (tried twice), it switches
-  autopilot off instead (the battle's X only works then), presses the X and
-  confirms, and uses that way for the rest of the session. Autopilot then
-  stays off in the game, so the bot switches it back on whenever it finds it
-  off, in battles and in dungeons.
-- **Which raid, World Boss and zone:** "Raid N" and "World Boss N" make the
-  bot press ◀ / ▶ in the Raid and World Boss summon windows until the Nth one
-  shows (it reads the row of dots under the picture; the green dot is the one
-  shown). "Quest zone N" does the same on the zone map, from 1 (Bit Valley)
-  to 20 (Big Claw); it knows the zones by their titles. The dungeon in the
-  zone is still the "Quest dungeon at" point. 0 plays whatever the game
-  shows. A raid that doesn't exist or a zone that isn't open yet is noted in
-  the log once, and the bot plays the one shown.
-- **Gauntlet / Trials difficulty and Invasion wave:** set a number and the
-  bot reads the one in the window (Difficulty or Wave box) before Play. If
-  it differs, it opens the box's list and clicks the nearest value. Gauntlet
-  and Trials (every other week, same icon) each have their own setting; their
-  list first shows ranges ("12,488 - 13,494"), then the range's values, 10
-  apart. The bot only clicks among the five rows shown when a list opens:
-  once the game's list is scrolled, its clicks often land on another row or
-  on none. That covers the five highest waves, and for Gauntlet / Trials the
-  five hardest ranges and the top 40 of each range. Anything further down
-  (the log says so), set once in the game, which keeps it. After a pick it
-  checks the window again and notes it if the game set something else. 0
-  leaves it as set in the game.
-- **Dialogs:** a character talking (a text box with a yellow ▶, e.g. the
-  first meeting with a boss, which a new browser shows again) is clicked
-  through.
-- **World Boss team:** "World Boss: start with N players" makes the bot wait
-  in the lobby until N players are in the team (it counts the rows without
-  an Invite button), then press Start. A boss with a smaller team starts when
-  the team is full. 1 (the default) starts at once.
-- **Game speed:** above 1, the game runs that many times faster while the
-  bot plays (the bot speeds up the game page's clocks and timers), menus
-  included. Invasion's fight time is game time, so at 3× it takes 10
-  seconds. If the game doesn't speed up, reload it once while the bot runs.
-  Switch off any other speed-hack add-on, or the speeds multiply. When the
-  bot stops, the game goes back to normal speed.
-- It looks at the game and recognises the screen that is showing: four times
-  a second while menus change (it acts as soon as the next screen is there),
-  once a second during fights. A click that changes nothing for 4 seconds
-  is repeated (some windows first load data from the server). Popups are handled whenever they appear: "Are you still there?",
-  "Disconnected" (Reconnect), the daily reward, "Your team is not full" (Yes).
-- When a mode runs out ("Not enough tickets…"), it answers **No** to the
-  offer to buy more, closes the window and moves to the next mode. When every
-  mode is out, it rests (30 minutes by default) and starts again from the first.
-  It never spends gems.
-- If a click doesn't register, it resets the input and clicks again. A screen
-  it doesn't know (battles, loading) is left alone. After 3 minutes the bot
-  saves a screenshot of it in `~/.config/tab-autoclicker/bot-screens/`. After
-  15 minutes it reloads the game.
-- **Frozen game:** battles and loading screens always move. If the picture
-  doesn't change at all for 90 seconds, the game has hung (this happens with
-  speed hacks at some times of day), so the bot reloads it. A hung page often
-  doesn't even reload; then the bot closes it and opens the game again in a
-  new window of the right size. Keep the game in its own window for this.
-- The game page must be **854 × 545** (the bot resizes the window; it can't
-  while the window is maximized) at 100 % zoom, and on Windows at 100 %
-  display scaling.
-- Costs (PvP tickets, Gauntlet tokens), the World Boss tier and difficulty,
-  and your teams are whatever you last chose in the game. Settings: Raid
-  difficulty, which PvP opponent row to fight, which Quest dungeon to click on
-  the zone map, and the rest time.
-
-Stop it with **Stop bot**, or Stop / F9 in the main window.
-
-## Browser games (such as Bit Heroes)
+## Browser games
 
 Games like Bit Heroes draw everything on one `<canvas>`, so the app cannot see
 buttons as page elements. Instead it clicks positions and can look at the
 screen with **image checks**.
 
-1. Launch Firefox as above, then press **Open game in new window…**. The
+1. Launch Firefox as above, then press **Open game window…**. The
    default address is the Bit Heroes page on Kongregate. A direct game link
    works too. The game gets a window of its own, and **Game mode** is switched
    on.
@@ -332,7 +389,7 @@ Examples:
 - On a Linux desktop without a compositor, a completely covered window counts
   as hidden, and the game freezes. This doesn't happen on normal Ubuntu GNOME.
   On Windows, the same happens unless window occlusion tracking is off (see
-  [Windows](#windows)).
+  [On Windows](#on-windows)).
 - Game rules: most online games, including Kongregate games, forbid bots and
   auto clickers, and a page can tell that Firefox is remote-controlled.
   Use this at your own risk.
@@ -352,7 +409,23 @@ Examples:
 | Aim at recorded element | Finds the clicked element again and clicks it even if it moved. It falls back to the position if the element is gone. |
 | Restore page scroll position | Scrolls the page back to where it was when that click was recorded. |
 | Show click markers | Draws a short ring where each replayed click lands. |
-| Game mode | For browser games. See [Browser games](#browser-games-such-as-bit-heroes). |
+| Game mode | For browser games. See [Browser games](#browser-games). |
+
+## On Windows
+
+- **Launch Firefox** finds Firefox in the registry or `Program Files`, and
+  your profiles in `%APPDATA%\Mozilla\Firefox`. The separate Auto Clicker
+  profile is kept in `%LOCALAPPDATA%\tab-autoclicker\firefox-profile`.
+- When the app starts Firefox, it also switches off
+  `widget.windows.window_occlusion_tracking.enabled` in that profile's
+  `user.js`. Otherwise Windows Firefox pauses a game whose window is covered
+  by other windows. If you start Firefox yourself
+  (`"C:\Program Files\Mozilla Firefox\firefox.exe" --remote-debugging-port 9222`),
+  set it to `false` in `about:config` once.
+- **Show tab** may not bring the tab to the front: Firefox waits for its
+  window to get the keyboard focus, which Windows does not give to it while
+  another program is in front. It gives up after 30 seconds.
+- Settings and presets are in `C:\Users\<you>\.config\tab-autoclicker\`.
 
 ## What the app changes in Firefox
 
@@ -365,7 +438,7 @@ Examples:
   restarts.
 - On Windows, starting Firefox also adds
   `widget.windows.window_occlusion_tracking.enabled = false` to `user.js`
-  (see [Windows](#windows)).
+  (see [On Windows](#on-windows)).
 - While connected, the app asks Firefox to leave page dialogs such as
   `alert()` and "Leave page?" for you to answer. By default, remote control
   would dismiss them automatically.
@@ -390,12 +463,14 @@ Examples:
 ## Files
 
 - `autoclicker.py` starts the app.
-- `tab_autoclicker/gui.py` is the Tk window.
+- `tab_autoclicker/gui.py` is the main window: Firefox, the game, and the
+  Bit Heroes bot and Click recorder tabs.
 - `tab_autoclicker/gui_check.py` is the image-check dialog.
 - `tab_autoclicker/gui_flow.py` is the flow chart window.
-- `tab_autoclicker/gui_bot.py` is the Bit Heroes bot window, and
-  `tab_autoclicker/bitheroes.py` its screens and decisions, with the reference
-  images in `tab_autoclicker/bitheroes/`.
+- `tab_autoclicker/gui_bot.py` is the Bit Heroes bot tab and the dungeon
+  picker, and `tab_autoclicker/bitheroes.py` the bot's screens and decisions,
+  with the reference images in `tab_autoclicker/bitheroes/` and the zone maps
+  for the picker in `tab_autoclicker/bitheroes/maps/`.
 - `tab_autoclicker/engine.py` handles picking, recording, playback and image
   checks.
 - `tab_autoclicker/imaging.py` decodes PNG screenshots and finds images in them.
@@ -418,11 +493,13 @@ Examples:
 - `tests/make_glyphs.py` rebuilds the templates the bot reads the game's
   numbers with (`tab_autoclicker/bitheroes/glyphs.json`) from the screenshots
   in `tests/data/`.
+- `docs/images/` holds the pictures in this README.
 
 Run a test with `python3 tests/<name>.py` on Linux, or
 `python .\tests\<name>.py` on Windows.
 
-Settings and the last recording are saved in
-`~/.config/tab-autoclicker/settings.json`, and presets in
-`~/.config/tab-autoclicker/presets/`. On Windows that is
-`C:\Users\<you>\.config\tab-autoclicker\`.
+Settings (including the bot's) and the last recording are saved in
+`~/.config/tab-autoclicker/settings.json`, presets in
+`~/.config/tab-autoclicker/presets/`, and the bot's screenshots of screens it
+doesn't know in `~/.config/tab-autoclicker/bot-screens/`. On Windows that
+folder is `C:\Users\<you>\.config\tab-autoclicker\`.

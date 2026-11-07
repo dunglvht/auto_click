@@ -38,6 +38,10 @@ MODES = {"quest": "Quest", "raid": "Raid", "pvp": "PvP", "gauntlet": "Gauntlet /
          "invasion": "Invasion"}
 DEFAULT_ORDER = ["raid", "wb", "invasion", "gauntlet", "pvp", "quest"]
 RAID_DIFFICULTY = {"normal": 224, "hard": 426, "heroic": 628}   # x of the button (y 244)
+# A Quest dungeon with a difficulty choice (all but the zone's red skull boss).
+DUNGEON_DIFFICULTY = {"normal": 226, "hard": 426, "heroic": 626}   # x of the button (y 251)
+DUNGEON_DIFFICULTY_CLOSE = (742, 113)
+COST_MAX = 5                  # the cost lists show 1-5 when they open (see the note above PICK_FIELD)
 
 # Where things are on the page (CSS px at 854 × 545).
 ICON = {"quest": (44, 45), "pvp": (44, 120), "wb": (44, 195), "raid": (44, 272), "gauntlet": (807, 345),
@@ -61,6 +65,11 @@ ZONE_PREV, ZONE_NEXT = (65, 290), (790, 290)
 ZONE_ARROW_PX = {ZONE_PREV: (62, 290), ZONE_NEXT: (792, 290)}
 ARROW_ON = (238, 234, 114)    # a usable arrow; a greyed-out one is about (134, 133, 76)
 ZONES = 20                    # zone_01 (Bit Valley) … zone_20 (Big Claw)
+ZONE_NAMES = ["Bit Valley", "Wintermarsh", "Lakehaven", "Ashvale", "Aramore", "Morgoroth", "Cambora",
+              "Galaran", "Eshlyn", "Vamor", "Melvin's Genesis", "Zord Attacks!", "Ancient Odyssey",
+              "Southpeak", "Fenrir's Omen", "Steamfunk City", "Olympian Secret Party", "Sruxon Attack!",
+              "Galactic Trials", "Big Claw"]
+MAP_BOX = (96, 104, 764, 492)   # where maps/zone_NN.png sits on the page (the map inside its frame)
 ESC_WAIT_S = 5.0             # after Esc in a battle: how long the quit popup may take to appear
 # World Boss lobby: the team rows (1 = the summoner) are 56 px apart. A row
 # that exists has a light frame on its left; an empty one shows a blue Invite button.
@@ -93,10 +102,13 @@ SCREENS: list[tuple[str, tuple[str, ...]]] = [
     ("result_right", ("town_right", "!rerun")),   # not "Cleared" while its banner slides in
     # A drop-down list (Gauntlet / Trials difficulty, Invasion wave), over its window.
     ("pick_list", ("list_title", "list_up")),
+    # The COST list (titled TICKETS, TOKENS, BADGES… by what it costs).
+    ("cost_list", ("list_close", "list_up", "!list_title")),
     ("team", ("team_title", "accept")),
     ("select_opponent", ("select_opponent",)),
     ("pvp_window", ("pvp_arena",)),
     ("raid_difficulty", ("raid_normal", "raid_heroic")),
+    ("dungeon_difficulty", ("dungeon_normal", "dungeon_heroic")),
     ("raid_window", ("raid_title", "raid_summon")),
     ("gauntlet_window", ("gauntlet",)),
     # Trials (every other week instead of Gauntlet): the same window with
@@ -135,7 +147,8 @@ WINDOWS = {
 # darker than their reference image. Everything else must match its colours
 # (also: open windows dim the town, which must not pass for the main screen).
 BUTTONS = {"reconnect", "still_there_yes", "rerun", "regroup_left", "auto_off_icon", "town_right", "town_middle", "regroup", "continue", "accept",
-           "raid_summon", "raid_normal", "raid_heroic", "wb_filter", "wb_summon_big", "wb_start", "zones"}
+           "raid_summon", "raid_normal", "raid_heroic", "wb_filter", "wb_summon_big", "wb_start", "zones",
+           "dungeon_normal", "dungeon_heroic"}
 
 
 @dataclass
@@ -155,6 +168,16 @@ class BotSettings:
     gauntlet_difficulty: int = 0   # Gauntlet difficulty (the number in its window); 0 = as set in the game
     trials_difficulty: int = 0     # Trials difficulty; 0 = as set in the game
     invasion_wave: int = 0         # Invasion wave; 0 = as set in the game
+    pvp_cost: int = 5              # tickets per PvP fight (the COST box); 0 = as set in the game
+    gauntlet_cost: int = 5         # tokens per Gauntlet / Trials run
+    invasion_cost: int = 5         # badges per Invasion run
+    quest_difficulty: str = "heroic"   # for dungeons with a difficulty choice (not the red skull)
+    quest_points: dict = field(default_factory=dict)   # zone number (str) -> the dungeon's (x, y)
+
+    def quest_point_for(self, zone_number: Optional[int]) -> tuple:
+        """The dungeon to click on the zone map: the one picked for that zone, else quest_point."""
+        p = self.quest_points.get(str(zone_number)) if zone_number else None
+        return tuple(p) if p else tuple(self.quest_point)
 
     @classmethod
     def from_dict(cls, d: dict) -> "BotSettings":
@@ -177,6 +200,14 @@ class BotSettings:
         s.quest_zone = min(ZONES, max(0, int(d.get("quest_zone", 0) or 0)))
         for key in ("gauntlet_difficulty", "trials_difficulty", "invasion_wave"):
             setattr(s, key, min(999999, max(0, int(d.get(key, 0) or 0))))
+        for key in ("pvp_cost", "gauntlet_cost", "invasion_cost"):
+            value = d.get(key, 5)
+            setattr(s, key, min(COST_MAX, max(0, int(value if value is not None else 5))))
+        if d.get("quest_difficulty") in DUNGEON_DIFFICULTY:
+            s.quest_difficulty = d["quest_difficulty"]
+        points = d.get("quest_points") or {}
+        s.quest_points = {str(k): (int(v[0]), int(v[1])) for k, v in points.items()
+                          if isinstance(v, (list, tuple)) and len(v) == 2}
         return s
 
     def to_dict(self) -> dict:
@@ -186,7 +217,10 @@ class BotSettings:
                 "wb_players": self.wb_players, "battle_speed": self.battle_speed,
                 "raid_number": self.raid_number, "wb_boss": self.wb_boss, "quest_zone": self.quest_zone,
                 "gauntlet_difficulty": self.gauntlet_difficulty, "trials_difficulty": self.trials_difficulty,
-                "invasion_wave": self.invasion_wave}
+                "invasion_wave": self.invasion_wave, "pvp_cost": self.pvp_cost,
+                "gauntlet_cost": self.gauntlet_cost, "invasion_cost": self.invasion_cost,
+                "quest_difficulty": self.quest_difficulty,
+                "quest_points": {k: list(v) for k, v in self.quest_points.items()}}
 
     @property
     def modes(self) -> list:
@@ -368,19 +402,26 @@ LIST_CLOSE = (598, 95)
 SCROLL_X, SCROLL_TRACK = 573, (149, 447)     # the handle moves between these
 FIELD_BOX = (510, 402, 625, 428)             # the chosen value in the window, inside its frame
 FIELD_OPEN = (651, 413)                      # that ▼
+COST_BOX = (556, 204, 603, 232)              # the COST box, inside its frame, right of its icon
+COST_OPEN = (628, 217)                       # its ▼
+COST_LIST_X = (285, 490)                     # cost list rows: the number, not the "?" on the right
 
 
 def list_row_center(k: int) -> tuple:
     return 415, int(LIST_ROW_TOP + LIST_ROW_PITCH * k + LIST_ROW_H / 2)
 
 
-def list_rows(img: imaging.Image) -> list:
+def list_rows(img: imaging.Image, xs: tuple = LIST_X) -> list:
     """The numbers in each row of an open drop-down list (None: unreadable)."""
     out = []
     for k in range(LIST_ROWS):
         top = int(LIST_ROW_TOP + LIST_ROW_PITCH * k)
-        out.append(read_numbers(img, (LIST_X[0], top + 3, LIST_X[1], top + LIST_ROW_H - 3)))
+        out.append(read_numbers(img, (xs[0], top + 3, xs[1], top + LIST_ROW_H - 3)))
     return out
+
+
+def _one(value: Optional[tuple]) -> Optional[int]:
+    return value[0] if value and len(value) == 1 else None
 
 
 def scroll_handle(img: imaging.Image) -> Optional[tuple]:
@@ -402,12 +443,23 @@ def look_closer(img: imaging.Image, screen: Optional[str]) -> dict:
         return {"dots": carousel(img)}
     if screen == "quest_map":
         return {"zone": zone(img)}
+    info = {}
     if screen in PICK_FIELD:
-        value = read_numbers(img, FIELD_BOX)
-        return {"field": value[0] if value and len(value) == 1 else None}
+        info["field"] = _one(read_numbers(img, FIELD_BOX))
+    if screen in COST_FIELD:
+        info["cost"] = _one(read_numbers(img, COST_BOX))
     if screen == "pick_list":
-        return {"rows": list_rows(img), "handle": scroll_handle(img)}
-    return {}
+        info.update(rows=list_rows(img), handle=scroll_handle(img))
+    if screen == "cost_list":
+        info.update(rows=list_rows(img, COST_LIST_X), handle=scroll_handle(img))
+    return info
+
+
+# Windows with a COST box: screen -> (what it costs, setting).
+COST_FIELD = {"pvp_window": ("PvP tickets", "pvp_cost"),
+              "gauntlet_window": ("Gauntlet tokens", "gauntlet_cost"),
+              "trials_window": ("Trials tokens", "gauntlet_cost"),
+              "invasion_window": ("Invasion badges", "invasion_cost")}
 
 
 # Windows with a drop-down to set before Play: screen -> (what, setting).
@@ -481,7 +533,8 @@ class Brain:
 
     def decide(self, screen: Optional[str], now: float, team: Optional[tuple] = None,
                dots: Optional[tuple] = None, zone: Optional[tuple] = None, field: Optional[int] = None,
-               rows: Optional[list] = None, handle: Optional[tuple] = None) -> Decision:
+               rows: Optional[list] = None, handle: Optional[tuple] = None,
+               cost: Optional[int] = None) -> Decision:
         """What to do on ``screen``. From look_closer: ``team`` is (players,
         size) in the World Boss lobby, ``dots`` (shown, count) in the Raid and
         World Boss windows, ``zone`` (number, can go back, can go on) on the
@@ -567,6 +620,13 @@ class Brain:
             return Decision("team → Accept", (550, 487))
         if screen == "pick_list":
             return self._pick(rows, handle)
+        if screen == "cost_list":
+            return self._pick_cost(rows)
+        if screen == "dungeon_difficulty":
+            if mode == "quest":
+                d = self.s.quest_difficulty
+                return Decision(f"dungeon → {d.title()}", (DUNGEON_DIFFICULTY[d], 251))
+            return Decision("dungeon difficulty → close", DUNGEON_DIFFICULTY_CLOSE)
         if screen == "select_opponent":
             n = self.s.pvp_opponent
             return Decision(f"opponent #{n} → Fight", (638, 214 + 57 * (n - 1)))
@@ -597,6 +657,19 @@ class Brain:
                     elif abs(field - want) >= (1 if key == "invasion_wave" else 10):
                         self.picking = {"key": key, "what": what, "want": want}
                         return Decision(f"{what} is {field:,} → choose {want:,}", FIELD_OPEN)
+            note = ""
+            if screen in COST_FIELD and owner == mode:
+                what, key = COST_FIELD[screen]
+                want = getattr(self.s, key)
+                if want and screen not in self.picked:
+                    if cost is None:
+                        self.picked.add(screen)
+                        note = f" (could not read the {what} cost: as set in the game)"
+                    elif cost != want:
+                        self.picking = {"key": screen, "what": what, "want": want}
+                        return Decision(f"{what}: {cost} per run → choose {want}", COST_OPEN)
+                    else:
+                        self.picked.add(screen)
             want = {"raid_window": self.s.raid_number, "wb_carousel": self.s.wb_boss}.get(screen, 0)
             if owner == mode and want and dots:
                 shown, count = dots
@@ -610,7 +683,7 @@ class Brain:
                     return Decision(f"{kind} {shown} of {count} → {'▶' if shown < want else '◀'} (to {kind} {want})",
                                     step, settle=1.2, stays=True)
             if owner == mode:
-                return Decision(f"{screen.replace('_', ' ')} → go", go)
+                return Decision(f"{screen.replace('_', ' ')} → go{note}", go)
             return Decision(f"{screen.replace('_', ' ')} → close", close)
         if screen == "quest_map":
             if mode == "quest":
@@ -627,7 +700,9 @@ class Brain:
                         return Decision(f"zone {number} → ◀ (to zone {want})", ZONE_PREV, settle=1.5, stays=True)
                     elif number != want and not self._warned(f"zone {want}"):
                         return Decision(f"zone {want} is not open yet; playing zone {number}")
-                return Decision("zone map → dungeon", tuple(self.s.quest_point))
+                number = zone[0] if zone else None
+                return Decision(f"zone map → dungeon{f' (zone {number})' if number else ''}",
+                                self.s.quest_point_for(number))
             return Decision("zone map → close", (772, 75))
         if screen == "main":
             if mode is None:
@@ -712,6 +787,20 @@ class Brain:
         self.picking = None
         self.chosen[p["key"]] = values[k]
         return Decision(f"{what} → {values[k]:,}{note}", list_row_center(k))
+
+    def _pick_cost(self, rows: Optional[list]) -> Decision:
+        """In an open COST list (1, 2, 3… top down): click the wanted cost."""
+        p = self.picking
+        if not p:
+            return Decision("cost list → close", LIST_CLOSE)
+        if not rows:
+            return self._give_up(p, "could not read the list")
+        for k, row in enumerate(rows):
+            if row == (p["want"],):
+                self.picked.add(p["key"])
+                self.picking = None
+                return Decision(f"{p['what']} → {p['want']} per run", list_row_center(k))
+        return self._give_up(p, f"{p['want']} is not in the list shown")
 
     def _give_up(self, p: dict, why: str) -> Decision:
         self.picked.add(p["key"])

@@ -17,10 +17,10 @@ from typing import Any, Callable, Optional
 from . import __version__, firefox
 from .engine import CLICK_ACTIONS, PRESET_ACTIONS, Engine, EngineError, PlayOptions, Step, TabInfo, safe_url
 from .gui_check import CheckDialog
-from .gui_bot import BotWindow
+from .gui_bot import BotPanel
 from .gui_flow import FlowWindow
 
-APP_NAME = "Firefox Tab Auto Clicker"
+APP_NAME = "Bit Heroes Bot"
 CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "tab-autoclicker")
 SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
 PRESETS_DIR = os.path.join(CONFIG_DIR, "presets")
@@ -77,12 +77,12 @@ class App:
         self._pending_preset: Optional[str] = None  # a check asked to go to this preset
         self._jump_id: Optional[str] = None         # scheduled start of that preset
         self.flow: Optional[FlowWindow] = None      # the flow chart window, while open
-        self.bot_win: Optional[BotWindow] = None    # the Bit Heroes bot window, while open
+        self.bot: Optional[BotPanel] = None         # the Bit Heroes bot tab
         self.win_size: Optional[tuple[int, int]] = None  # saved page size (per preset, in play settings)
         self._last_dir = self.settings.get("last_dir") or os.path.expanduser("~")
 
         root.title(APP_NAME)
-        root.minsize(620, 640)
+        root.minsize(900, 700)
         self._style()
         self._build()
         self._load_ui_settings()
@@ -133,8 +133,8 @@ class App:
         outer.columnconfigure(0, weight=1)
         outer.rowconfigure(2, weight=1)
 
-        # 1. Firefox connection ------------------------------------------------
-        conn = ttk.LabelFrame(outer, text="1  Firefox", style="Section.TLabelframe")
+        # Firefox connection ---------------------------------------------------
+        conn = ttk.LabelFrame(outer, text="Firefox", style="Section.TLabelframe")
         conn.grid(row=0, column=0, sticky="ew")
         conn.columnconfigure(1, weight=1)
         top = ttk.Frame(conn)
@@ -166,33 +166,44 @@ class App:
         ttk.Checkbutton(opts, text="Keep my normal Firefox settings", variable=self.keep_prefs_var).pack(side="left")
         self.reopen_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(opts, text="Reopen my tabs", variable=self.reopen_var).pack(side="left", padx=(14, 0))
-        ttk.Label(conn, style="Hint.TLabel", wraplength=580, justify="left",
-                  text="Firefox has to be started with remote control switched on. If it is already open "
-                       "without it, you will be asked to quit Firefox first, and it then restarts with your "
-                       "tabs.").grid(row=3, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        ttk.Label(conn, style="Hint.TLabel", wraplength=720, justify="left",
+                  text="Choose the Firefox profile you play Bit Heroes with. Firefox has to run with remote "
+                       "control switched on: if it is already open without it, you are asked to quit it, and "
+                       "it then restarts with your tabs.").grid(row=3, column=0, columnspan=3, sticky="w",
+                                                                pady=(4, 0))
 
-        # 2. Target tab -----------------------------------------------------------
-        tgt = ttk.LabelFrame(outer, text="2  Target tab", style="Section.TLabelframe")
+        # The game -----------------------------------------------------------------
+        tgt = ttk.LabelFrame(outer, text="Game", style="Section.TLabelframe")
         tgt.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        tgt.columnconfigure(3, weight=1)
-        self.pick_btn = ttk.Button(tgt, text="\u25CE  Pick tab by clicking", command=self.toggle_pick,
+        tgt.columnconfigure(4, weight=1)
+        self.game_btn = ttk.Button(tgt, text="Open game window\u2026", command=self.open_game,
                                    style="Accent.TButton")
-        self.pick_btn.grid(row=0, column=0, sticky="w")
-        self.list_btn = ttk.Button(tgt, text="Choose from list ▾", command=self.choose_from_list)
-        self.list_btn.grid(row=0, column=1, padx=(6, 0))
+        self.game_btn.grid(row=0, column=0, sticky="w")
+        ttk.Label(tgt, text="or, if it is already open:", style="Hint.TLabel").grid(row=0, column=1, padx=(12, 6))
+        self.pick_btn = ttk.Button(tgt, text="\u25CE  Pick its tab by clicking", command=self.toggle_pick)
+        self.pick_btn.grid(row=0, column=2, sticky="w")
+        self.list_btn = ttk.Button(tgt, text="Choose from list \u25BE", command=self.choose_from_list)
+        self.list_btn.grid(row=0, column=3, padx=(6, 0))
         self.show_btn = ttk.Button(tgt, text="Show tab", command=self.show_tab)
-        self.show_btn.grid(row=0, column=2, padx=(6, 0))
-        self.game_btn = ttk.Button(tgt, text="Open game in new window…", command=self.open_game)
-        self.game_btn.grid(row=0, column=3, sticky="e")
-        ttk.Button(tgt, text="Bit Heroes bot…", command=self.open_bot).grid(row=0, column=4, padx=(6, 0))
-        self.target_title = tk.StringVar(value="No tab chosen yet")
-        self.target_url = tk.StringVar(value="Press “Pick tab by clicking”, then click inside the Firefox tab.")
+        self.show_btn.grid(row=0, column=5, sticky="e")
+        self.target_title = tk.StringVar(value="No game tab yet")
+        self.target_url = tk.StringVar(value="Press \u201cOpen game window\u2026\u201d, or pick the tab the game runs in.")
         ttk.Label(tgt, textvariable=self.target_title, style="Target.TLabel").grid(
-            row=1, column=0, columnspan=4, sticky="w", pady=(8, 0))
+            row=1, column=0, columnspan=6, sticky="w", pady=(8, 0))
         ttk.Label(tgt, textvariable=self.target_url, style="Hint.TLabel").grid(
-            row=2, column=0, columnspan=4, sticky="w")
-        size = ttk.Frame(tgt)
-        size.grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
+            row=2, column=0, columnspan=6, sticky="w")
+
+        # Tabs: the bot, and the general click recorder ------------------------------
+        self.tabs = ttk.Notebook(outer)
+        self.tabs.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
+        self.bot = BotPanel(self.tabs, self)
+        self.tabs.add(self.bot, text="  Bit Heroes bot  ")
+        recorder = ttk.Frame(self.tabs, padding=(8, 8))
+        recorder.columnconfigure(0, weight=1)
+        recorder.rowconfigure(1, weight=1)
+        self.tabs.add(recorder, text="  Click recorder  ")
+        size = ttk.Frame(recorder)
+        size.grid(row=0, column=0, sticky="w")
         ttk.Label(size, text="Page size").pack(side="left")
         self.size_now_var = tk.StringVar(value="–")
         ttk.Label(size, textvariable=self.size_now_var, font=self.font_bold).pack(side="left", padx=(6, 0))
@@ -205,9 +216,9 @@ class App:
         self.resize_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(size, text="before playing", variable=self.resize_var).pack(side="left", padx=(8, 0))
 
-        # 3. Recording ------------------------------------------------------------
-        rec = ttk.LabelFrame(outer, text="3  Clicks", style="Section.TLabelframe")
-        rec.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
+        # Recording (Click recorder tab) -----------------------------------------
+        rec = ttk.LabelFrame(recorder, text="Clicks", style="Section.TLabelframe")
+        rec.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
         rec.columnconfigure(0, weight=1)
         rec.rowconfigure(2, weight=1)
         pre = ttk.Frame(rec)
@@ -267,9 +278,9 @@ class App:
                   "right-click for more.").grid(
             row=3, column=0, sticky="w", pady=(4, 0))
 
-        # 4. Playback -------------------------------------------------------------
-        play = ttk.LabelFrame(outer, text="4  Play", style="Section.TLabelframe")
-        play.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        # Playback (Click recorder tab) ------------------------------------------
+        play = ttk.LabelFrame(recorder, text="Play", style="Section.TLabelframe")
+        play.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         play.columnconfigure(0, weight=1)
         num = dict(width=7)
         pad = dict(pady=(6, 0))
@@ -349,9 +360,9 @@ class App:
         ttk.Label(pb, textvariable=self.progress_var).pack(side="left", padx=(12, 0))
         ttk.Label(pb, text="Esc stops everything", style="Hint.TLabel").pack(side="right")
 
-        # 5. Log -------------------------------------------------------------------
+        # Log -----------------------------------------------------------------------
         logf = ttk.Frame(outer)
-        logf.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        logf.grid(row=3, column=0, sticky="ew", pady=(8, 0))
         logf.columnconfigure(0, weight=1)
         self.log_text = tk.Text(logf, height=5, wrap="word", font=self.font_small, relief="flat",
                                 background="#f6f5f4", foreground="#333333", padx=6, pady=4,
@@ -624,8 +635,8 @@ class App:
         elif kind == "step":
             self._add_step(payload)
         elif kind == "bot":
-            if self.bot_win:
-                self.bot_win.show(payload)
+            if self.bot:
+                self.bot.show(payload)
         elif kind == "status":
             self.status_note = payload
             if self.mode == "playing" and self._last_progress:
@@ -637,8 +648,8 @@ class App:
     def _set_target(self, tab: Optional[TabInfo]) -> None:
         self.target = tab
         if tab is None:
-            self.target_title.set("No tab chosen yet")
-            self.target_url.set("Press “Pick tab by clicking”, then click inside the Firefox tab.")
+            self.target_title.set("No game tab yet")
+            self.target_url.set("Press “Open game window…”, or pick the tab the game runs in.")
         else:
             self.target_title.set(tab.title or "(untitled page)")
             self.target_url.set(tab.short_url)
@@ -665,8 +676,8 @@ class App:
         self.tree.item(item, tags=self._row_tags(self.tree.index(item)))
 
     def _update_states(self) -> None:
-        if self.bot_win:
-            self.bot_win.update_state()
+        if self.bot:
+            self.bot.update_state()
         idle = self.mode == "idle"
         busy = self._busy_calls > 0
         on = self.connected
@@ -682,7 +693,7 @@ class App:
         self.profile_box.configure(state="disabled" if on else "readonly")
         state(self.port_entry, not on)
         self.pick_btn.configure(text="✖  Cancel picking" if self.mode == "picking"
-                                else "\u25CE  Pick tab by clicking")
+                                else "\u25CE  Pick its tab by clicking")
         state(self.pick_btn, on and (idle or self.mode == "picking"))
         state(self.list_btn, on and idle)
         state(self.show_btn, on and self.target is not None)
@@ -871,10 +882,10 @@ class App:
                     on_err=lambda e: (self._show_error(e), self._update_size_now()))
 
     def open_bot(self) -> None:
-        if self.bot_win:
-            self.bot_win.lift()
-        else:
-            self.bot_win = BotWindow(self)
+        self.tabs.select(0)
+
+    def _bot_tab_shown(self) -> bool:
+        return self.tabs.index(self.tabs.select()) == 0
 
     @staticmethod
     def settings_path() -> str:
@@ -1389,6 +1400,9 @@ class App:
             return
         if self._cancel_jump():
             return
+        if not chained and self._bot_tab_shown():   # F9 on the bot tab: start the bot
+            self.bot.toggle()
+            return
         if not (self.connected and self.mode == "idle" and self.target and self.steps):
             return
         jumps = any(s.is_check and (s.on_found in PRESET_ACTIONS or s.on_missing in PRESET_ACTIONS)
@@ -1434,8 +1448,8 @@ class App:
     # ------------------------------------------------------------------ closing
 
     def on_close(self) -> None:
-        if self.bot_win:
-            self.bot_win.close()
+        if self.bot:
+            self.bot.close()
         self._save_ui_settings()
         try:
             self.engine.disconnect()  # ends the session so Firefox accepts a new one

@@ -255,6 +255,37 @@ def main() -> int:
     x = bh.Brain(bh.BotSettings())
     check(x.decide("pick_list", 1, **info("wave_list.png")).point == bh.LIST_CLOSE, "a list the bot did not open: closed")
 
+    print("Costs and Quest dungeons")
+    check(bh.BotSettings().pvp_cost == 5 and bh.BotSettings.from_dict({}).invasion_cost == 5, "costs default to 5")
+    check(bh.read_numbers(load("invasion_wave_60.png"), bh.FIELD_BOX) == (60,)
+          and bh.read_numbers(load("invasion_cost_1.png"), bh.FIELD_BOX) == (62,), "reads the wave box (60, 62)")
+    check([bh.read_numbers(load(f"invasion_cost_{n}.png"), bh.COST_BOX) for n in range(1, 6)]
+          == [(n,) for n in range(1, 6)], "reads the COST box, 1 to 5")
+    check(bh.identify(load("cost_list.png")) == "cost_list"
+          and bh.look_closer(load("cost_list.png"), "cost_list")["rows"] == [(n,) for n in range(1, 6)],
+          "the cost list (BADGES) is recognised and read")
+    c = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"]))
+    d = c.decide("invasion_window", 1, **info("invasion_cost_1.png"))
+    check(d.point == bh.COST_OPEN, f"Invasion costs 1, 5 wanted: opens the cost list ({d.what})")
+    d = c.decide("cost_list", 2, **info("cost_list.png"))
+    check(d.point == bh.list_row_center(4), f"clicks 5 ({d.what})")
+    check(c.decide("invasion_window", 3, **info("invasion_cost_5.png")).point == (584, 292), "then Play")
+    c0 = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_cost=0))
+    check(c0.decide("invasion_window", 1, field=62, cost=1).point == (584, 292), "cost 0: as set in the game")
+    c2 = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_wave=60))
+    check(c2.decide("invasion_window", 1, field=62, cost=1).point == bh.FIELD_OPEN, "the wave is set before the cost")
+    check(bh.identify(load("dungeon_difficulty.png")) == "dungeon_difficulty", "a dungeon's difficulty window")
+    qd = bh.Brain(bh.BotSettings(order=["quest"], enabled=["quest"], quest_difficulty="hard"))
+    check(qd.decide("dungeon_difficulty", 1).point == (426, 251), "Quest: clicks Hard")
+    check(bh.Brain(bh.BotSettings(order=["raid", "quest"], enabled=["raid", "quest"])).decide(
+        "dungeon_difficulty", 1).point == bh.DUNGEON_DIFFICULTY_CLOSE, "not playing Quest: closes it")
+    qp = bh.Brain(bh.BotSettings(order=["quest"], enabled=["quest"], quest_points={"12": (240, 300)}))
+    check(qp.decide("quest_map", 1, zone=(12, True, True)).point == (240, 300)
+          and qp.decide("quest_map", 2, zone=(5, True, True)).point == (430, 300),
+          "the dungeon picked for the zone, else the general point")
+    s = bh.BotSettings.from_dict(bh.BotSettings(quest_points={"3": (1, 2)}, pvp_cost=2).to_dict())
+    check(s.quest_points == {"3": (1, 2)} and s.pvp_cost == 2, "dungeon points and costs are saved")
+
     print("World Boss team")
     lobby = imaging.decode_png(open(os.path.join(os.path.dirname(__file__), "data", "wb_lobby.png"), "rb").read())
     check(bh.identify(lobby) == "wb_lobby", "the lobby screenshot is recognised")
