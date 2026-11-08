@@ -166,6 +166,9 @@ class App:
         ttk.Checkbutton(opts, text="Keep my normal Firefox settings", variable=self.keep_prefs_var).pack(side="left")
         self.reopen_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(opts, text="Reopen my tabs", variable=self.reopen_var).pack(side="left", padx=(14, 0))
+        self.hide_sidebar_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(opts, text="Hide Firefox's sidebar", variable=self.hide_sidebar_var).pack(
+            side="left", padx=(14, 0))
         ttk.Label(conn, style="Hint.TLabel", wraplength=720, justify="left",
                   text="Choose the Firefox profile you play Bit Heroes with. Firefox has to run with remote "
                        "control switched on: if it is already open without it, you are asked to quit it, and "
@@ -383,6 +386,7 @@ class App:
             self.profile_box.current(index)
         self.keep_prefs_var.set(bool(s.get("keep_prefs", True)))
         self.reopen_var.set(bool(s.get("reopen_tabs", True)))
+        self.hide_sidebar_var.set(bool(s.get("hide_sidebar", True)))
         self._apply_play_settings(s.get("play", {}))
         self.game_url = s.get("game_url") or GAME_URL
         if s.get("geometry"):
@@ -411,6 +415,7 @@ class App:
             "profile_path": prof.path if prof else None,
             "keep_prefs": self.keep_prefs_var.get(),
             "reopen_tabs": self.reopen_var.get(),
+            "hide_sidebar": self.hide_sidebar_var.get(),
             "geometry": self.root.geometry(),
             "last_dir": self._last_dir,
             "last_steps": [s.to_dict() for s in self.steps],
@@ -810,6 +815,11 @@ class App:
                 if firefox.set_user_pref(prof.path, "remote.prefs.recommended", False):
                     self.log("Set remote.prefs.recommended = false in the profile's user.js, so remote "
                              "control does not switch off Safe Browsing, password saving and similar settings.")
+            if firefox.hide_sidebar(prof.path, self.hide_sidebar_var.get()):
+                self.log("Firefox's sidebar (the tool icons on the left) is now hidden; the sidebar button "
+                         "in the toolbar still opens its tools." if self.hide_sidebar_var.get() else
+                         "Firefox's sidebar is no longer hidden by Auto Clicker (change it in Firefox: "
+                         "right-click the sidebar button → Customize sidebar).")
             if self.reopen_var.get() and firefox.request_session_restore(prof.path):
                 self.log("Firefox will reopen the tabs from your last session.")
             proc = firefox.launch(self.binary, prof.path, port)

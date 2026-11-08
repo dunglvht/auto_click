@@ -290,6 +290,41 @@ def set_user_pref(profile_dir: str, name: str, value) -> bool:
     return True
 
 
+def remove_user_pref(profile_dir: str, name: str) -> bool:
+    """Remove the app's own ``user.js`` line for ``name`` (lines the user wrote
+    stay). Firefox keeps the last value until it is changed in Firefox.
+    Returns True if a line was removed."""
+    path = os.path.join(profile_dir, "user.js")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except FileNotFoundError:
+        return False
+    needle = f'user_pref("{name}",'
+    kept = [ln for ln in lines if not (ln.strip().startswith(needle) and USER_JS_MARK in ln)]
+    if len(kept) == len(lines):
+        return False
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(kept) + ("\n" if kept else ""))
+    return True
+
+
+def hide_sidebar(profile_dir: str, hide: bool) -> bool:
+    """Hide Firefox's sidebar launcher (the strip of tool icons on the left),
+    as unticking "Open tools from the sidebar" in Firefox's "Customize
+    sidebar" does: the toolbar's sidebar button still opens the tools. With
+    vertical tabs the equivalent is "hide-sidebar". ``hide=False`` removes the
+    app's setting again. Returns True if user.js changed."""
+    if not hide:
+        return remove_user_pref(profile_dir, "sidebar.visibility")
+    try:
+        with open(os.path.join(profile_dir, "prefs.js"), encoding="utf-8", errors="replace") as fh:
+            vertical = 'user_pref("sidebar.verticalTabs", true);' in fh.read()
+    except OSError:
+        vertical = False
+    return set_user_pref(profile_dir, "sidebar.visibility", "hide-sidebar" if vertical else "hide-launcher")
+
+
 def request_session_restore(profile_dir: str) -> bool:
     """Ask Firefox to reopen the previous windows/tabs once on its next start.
 

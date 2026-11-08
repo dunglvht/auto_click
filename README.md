@@ -439,6 +439,14 @@ Examples:
 - **Reopen my tabs** asks Firefox, once, to restore the previous session on
   the next start. This is the same one-time setting Firefox uses for its own
   restarts.
+- **Hide Firefox's sidebar** (on by default) adds
+  `sidebar.visibility = "hide-launcher"` to `user.js` (with vertical tabs:
+  `"hide-sidebar"`), so the strip of tool icons on the left stays hidden and
+  the game gets the whole window. It is the same as unticking "Open tools
+  from the sidebar" in Firefox's "Customize sidebar"; the sidebar button in
+  the toolbar still opens history, passwords and the other tools. Unticking
+  the option removes the line again (Firefox then keeps the last setting
+  until you change it in Firefox).
 - On Windows, starting Firefox also adds
   `widget.windows.window_occlusion_tracking.enabled = false` to `user.js`
   (see [On Windows](#on-windows)).
