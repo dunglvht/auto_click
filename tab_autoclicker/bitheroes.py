@@ -36,7 +36,7 @@ NEED_FOR = {"sidebar": 0.6, "not_enough_energy": 0.97, "not_enough_tickets": 0.9
 
 MODES = {"quest": "Quest", "raid": "Raid", "pvp": "PvP", "gauntlet": "Gauntlet / Trials", "wb": "World Boss",
          "invasion": "Invasion"}
-DEFAULT_ORDER = ["raid", "wb", "invasion", "gauntlet", "pvp", "quest"]
+DEFAULT_ORDER = ["wb", "raid", "invasion", "gauntlet", "pvp", "quest"]
 RAID_DIFFICULTY = {"normal": 224, "hard": 426, "heroic": 628}   # x of the button (y 244)
 # A Quest dungeon with a difficulty choice (all but the zone's red skull boss).
 DUNGEON_DIFFICULTY = {"normal": 226, "hard": 426, "heroic": 626}   # x of the button (y 251)
@@ -48,8 +48,10 @@ ICON = {"quest": (44, 45), "pvp": (44, 120), "wb": (44, 195), "raid": (44, 272),
         "invasion": (807, 270)}
 AUTO_BUTTON = (835, 270)      # autopilot on/off, in battles
 PARK = (427, 2)               # where the mouse rests between clicks: no button there
-LOOK_S = 0.25                 # how often the bot looks while menus change
-RECLICK_S = 4.0               # no change this long after a click: it was missed, click again
+LOOK_S = 0.1                  # how often the bot looks while menus change (a look itself takes ~0.15 s)
+RECLICK_S = 3.0               # no change this long after a click: it was missed, click again
+PARK_AFTER_S = 0.1            # after a click, wait this long (a few game frames) before moving the mouse away
+BUSY_LOOK_S = 0.5             # how often it looks during battles and dungeons
 BATTLE_X = (816, 33)          # leave the battle (only works with autopilot off)
 YES, NO = (355, 375), (498, 375)
 TEAM_CLOSE = (749, 81)        # the X of the team window
@@ -156,23 +158,23 @@ class BotSettings:
     order: list = field(default_factory=lambda: list(DEFAULT_ORDER))   # mode keys, in order
     enabled: list = field(default_factory=lambda: list(DEFAULT_ORDER))
     raid_difficulty: str = "heroic"
-    pvp_opponent: int = 1          # row in the opponent list; 1 = the weakest
+    pvp_opponent: int = 4          # row in the opponent list; 1 = the top one
     quest_point: tuple = (430, 300)  # the dungeon to click on the zone map
     rest_min: int = 30             # when every mode is out: wait this long, then start again
     invasion_s: int = 30           # Invasion: fight this long (enough for the loot), then leave the battle
     wb_players: int = 1            # World Boss: wait in the lobby until this many players are in the team
     battle_speed: int = 1          # game speed, everywhere (1 = normal); saved under its first name
-    raid_number: int = 0           # which raid (1 = the first); 0 = the one the game shows
-    wb_boss: int = 0               # which World Boss (1 = the first); 0 = the one the game shows
-    quest_zone: int = 0            # which Quest zone (1 = Bit Valley); 0 = the one the game shows
-    gauntlet_difficulty: int = 0   # Gauntlet difficulty (the number in its window); 0 = as set in the game
+    raid_number: int = 16          # which raid (1 = the first); 0 = the one the game shows
+    wb_boss: int = 11              # which World Boss (1 = the first); 0 = the one the game shows
+    quest_zone: int = 12           # which Quest zone (1 = Bit Valley); 0 = the one the game shows
+    gauntlet_difficulty: int = 20002   # Gauntlet difficulty (the number in its window); 0 = as set in the game
     trials_difficulty: int = 0     # Trials difficulty; 0 = as set in the game
-    invasion_wave: int = 0         # Invasion wave; 0 = as set in the game
+    invasion_wave: int = 100       # Invasion wave; 0 = as set in the game
     pvp_cost: int = 5              # tickets per PvP fight (the COST box); 0 = as set in the game
     gauntlet_cost: int = 5         # tokens per Gauntlet / Trials run
     invasion_cost: int = 5         # badges per Invasion run
     quest_difficulty: str = "heroic"   # for dungeons with a difficulty choice (not the red skull)
-    quest_points: dict = field(default_factory=dict)   # zone number (str) -> the dungeon's (x, y)
+    quest_points: dict = field(default_factory=lambda: {"12": (435, 293)})   # zone (str) -> dungeon (x, y)
 
     def quest_point_for(self, zone_number: Optional[int]) -> tuple:
         """The dungeon to click on the zone map: the one picked for that zone, else quest_point."""
@@ -187,7 +189,7 @@ class BotSettings:
         s.enabled = [m for m in d.get("enabled", s.enabled) if m in MODES]
         if d.get("raid_difficulty") in RAID_DIFFICULTY:
             s.raid_difficulty = d["raid_difficulty"]
-        s.pvp_opponent = min(4, max(1, int(d.get("pvp_opponent", 1) or 1)))
+        s.pvp_opponent = min(4, max(1, int(d.get("pvp_opponent") or s.pvp_opponent)))
         qp = d.get("quest_point")
         if isinstance(qp, (list, tuple)) and len(qp) == 2:
             s.quest_point = (int(qp[0]), int(qp[1]))
@@ -195,17 +197,18 @@ class BotSettings:
         s.invasion_s = max(5, int(d.get("invasion_s", 30) or 30))
         s.wb_players = min(5, max(1, int(d.get("wb_players", 1) or 1)))
         s.battle_speed = min(10, max(1, int(d.get("battle_speed", 1) or 1)))
-        s.raid_number = min(30, max(0, int(d.get("raid_number", 0) or 0)))
-        s.wb_boss = min(30, max(0, int(d.get("wb_boss", 0) or 0)))
-        s.quest_zone = min(ZONES, max(0, int(d.get("quest_zone", 0) or 0)))
+        # A missing value takes the default; 0 ("as the game shows") is kept.
+        s.raid_number = min(30, max(0, int(d.get("raid_number", s.raid_number) or 0)))
+        s.wb_boss = min(30, max(0, int(d.get("wb_boss", s.wb_boss) or 0)))
+        s.quest_zone = min(ZONES, max(0, int(d.get("quest_zone", s.quest_zone) or 0)))
         for key in ("gauntlet_difficulty", "trials_difficulty", "invasion_wave"):
-            setattr(s, key, min(999999, max(0, int(d.get(key, 0) or 0))))
+            setattr(s, key, min(999999, max(0, int(d.get(key, getattr(s, key)) or 0))))
         for key in ("pvp_cost", "gauntlet_cost", "invasion_cost"):
             value = d.get(key, 5)
             setattr(s, key, min(COST_MAX, max(0, int(value if value is not None else 5))))
         if d.get("quest_difficulty") in DUNGEON_DIFFICULTY:
             s.quest_difficulty = d["quest_difficulty"]
-        points = d.get("quest_points") or {}
+        points = d.get("quest_points", s.quest_points) or {}
         s.quest_points = {str(k): (int(v[0]), int(v[1])) for k, v in points.items()
                           if isinstance(v, (list, tuple)) and len(v) == 2}
         return s

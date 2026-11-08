@@ -1163,7 +1163,7 @@ class Engine:
                     if d.what and d.what != last_wait:
                         self.log(f"Bot: {d.what}.")
                     last_wait = d.what
-                    self._stop.wait(1.0 if brain.mode else 5.0)
+                    self._stop.wait(bitheroes.BUSY_LOOK_S if brain.mode else 5.0)
                     continue
                 last_wait = ""
                 key = (screen, d.point, d.what if d.stays else "")   # ◀ ▶: progress shows in the text
@@ -1289,7 +1289,7 @@ class Engine:
         hovered, which would change how they look in the next screenshot.
         Not at once: the game reads the mouse once per frame, and a release
         it sees away from the button does not count as a click."""
-        self._stop.wait(0.3)
+        self._stop.wait(bitheroes.PARK_AFTER_S)
         x, y = bitheroes.PARK
         try:
             client.send("input.performActions", {"context": tab, "actions": [{

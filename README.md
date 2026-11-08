@@ -23,20 +23,23 @@ You need Python 3.9 or newer (with Tk) and a recent Firefox.
 
 Tested on Windows 11 with Firefox 159 and Python 3.15.
 
-1. Install Python from [python.org](https://www.python.org/downloads/). Tk is
-   included. In the installer, tick **Add python.exe to PATH**.
-2. Open PowerShell in the app's folder (in Explorer: Shift + right-click the
-   folder → "Open PowerShell window here") and run:
+1. **Double-click `install.bat`** in the app's folder. It:
+   - finds Python 3.9 or newer, and installs Python 3.12 with `winget` if
+     there is none (otherwise it opens python.org: install it with **Add
+     python.exe to PATH** ticked, then run `install.bat` again);
+   - installs what the bot needs (websocket-client, Pillow, numpy);
+   - puts a **Bit Heroes Bot** shortcut on your desktop.
+2. **Start the bot** with that shortcut, or double-click **`run.bat`**. Both
+   open only the app's window, without a console window.
 
-   ```powershell
-   pip install -r requirements.txt pillow numpy
-   python .\autoclicker.py
-   ```
-
-   If `python` opens the Microsoft Store instead, Windows' Store shortcut is
-   in the way: switch off "App execution aliases" for python in Settings →
-   Apps → Advanced app settings, or run Python by its full path, for example
+   By hand instead: open PowerShell in the app's folder and run
+   `pip install -r requirements.txt pillow numpy`, then
+   `python .\autoclicker.py`. If `python` opens the Microsoft Store, Windows'
+   Store shortcut is in the way: switch off "App execution aliases" for
+   python in Settings → Apps → Advanced app settings, or run Python by its
+   full path, for example
    `& "$env:LOCALAPPDATA\Programs\Python\Python315\python.exe" .\autoclicker.py`.
+   (`install.bat` and `run.bat` already skip the Store shortcut.)
 3. Set Windows display scaling to **100%** (Settings → System → Display →
    Scale). The bot compares the game with pictures taken at 100% and stops
    with a message otherwise. To keep your scaling instead, set
@@ -463,6 +466,8 @@ Examples:
 ## Files
 
 - `autoclicker.py` starts the app.
+- `install.bat` and `run.bat` (Windows, double-click) install and start it;
+  `scripts/find_python.bat` finds a usable Python for both.
 - `tab_autoclicker/gui.py` is the main window: Firefox, the game, and the
   Bit Heroes bot and Click recorder tabs.
 - `tab_autoclicker/gui_check.py` is the image-check dialog.

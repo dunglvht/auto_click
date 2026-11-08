@@ -10,6 +10,15 @@ from tab_autoclicker import bitheroes as bh, imaging  # noqa: E402
 failed = 0
 
 
+def neutral(**kw) -> "bh.BotSettings":
+    """Settings without the user's own defaults (opponent 4, raid 16, zone 12, …):
+    "as the game shows" everywhere, so each test only sets what it is about."""
+    base = dict(pvp_opponent=1, raid_number=0, wb_boss=0, quest_zone=0, gauntlet_difficulty=0,
+                trials_difficulty=0, invasion_wave=0, quest_points={})
+    base.update(kw)
+    return bh.BotSettings(**base)
+
+
 def check(ok: bool, what: str) -> None:
     global failed
     failed += not ok
@@ -37,7 +46,7 @@ def main() -> int:
           "Rerun and Town without the Cleared banner (sliding in): wait, don't press Town")
 
     print("Decisions")
-    b = bh.Brain(bh.BotSettings(order=["pvp", "gauntlet"], enabled=["pvp", "gauntlet"], rest_min=10))
+    b = bh.Brain(neutral(order=["pvp", "gauntlet"], enabled=["pvp", "gauntlet"], rest_min=10))
     steps = [("main", 1), ("pvp_window", 2), ("select_opponent", 3), ("team", 4), ("result_middle", 5)]
     got = [b.decide(s, t).point for s, t in steps]
     check(got == [bh.ICON["pvp"], (584, 287), (638, 214), (550, 487), (443, 498)] and b.runs["pvp"] == 1,
@@ -55,9 +64,9 @@ def main() -> int:
     check(b.decide("main", 12).point is None, "waits in town while resting")
     check(b.decide("main", 12 + 10 * 60).point == bh.ICON["pvp"], "starts again with the first mode after the rest")
 
-    b = bh.Brain(bh.BotSettings(order=["raid", "wb", "quest"], enabled=["raid", "wb", "quest"]))
+    b = bh.Brain(neutral(order=["raid", "wb", "quest"], enabled=["raid", "wb", "quest"]))
     check(b.decide("raid_difficulty", 1).point == (628, 244), "raid: Heroic by default")
-    t = bh.Brain(bh.BotSettings(order=["raid", "quest"], enabled=["raid", "quest"]))
+    t = bh.Brain(neutral(order=["raid", "quest"], enabled=["raid", "quest"]))
     t.decide("team", 1)
     t.decide("not_enough_shards", 2)
     check(t.decide("team", 3).point == bh.TEAM_CLOSE and t.decide("raid_difficulty", 4).point == (748, 112),
@@ -81,7 +90,7 @@ def main() -> int:
     b.decide("victory_continue", 20)
     check(b.decide("victory_continue", 25).point is None and b.decide("victory_continue", 31).point == (500, 498),
           "mid-run victory: leaves it to autopilot, helps after 10 s")
-    v = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_s=30))
+    v = bh.Brain(neutral(order=["invasion"], enabled=["invasion"], invasion_s=30))
     check(v.decide("main", 0).point == bh.ICON["invasion"] and v.decide("invasion_window", 1).point == (584, 292),
           "Invasion: icon, Play")
     v.decide("team", 2)
@@ -101,7 +110,7 @@ def main() -> int:
     check(v.decide("autopilot_on", 81).key == bh.ESCAPE and v.decide("autopilot_on", 87).point == bh.AUTO_BUTTON
           and v.esc_works is True, "Esc lost once: tries again, then autopilot off for this battle only")
 
-    x = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_s=30))
+    x = bh.Brain(neutral(order=["invasion"], enabled=["invasion"], invasion_s=30))
     for s, t in (("main", 0), ("invasion_window", 1), ("team", 2)):
         x.decide(s, t)
     x.decide("autopilot_on", 5)
@@ -121,16 +130,16 @@ def main() -> int:
     x.decide("result_middle", 101)
     check(x.decide("autopilot_off", 150).point == bh.AUTO_BUTTON, "a later battle with autopilot off: switches it on")
 
-    f = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_s=30, battle_speed=3))
+    f = bh.Brain(neutral(order=["invasion"], enabled=["invasion"], invasion_s=30, battle_speed=3))
     for s, t in (("main", 0), ("invasion_window", 1), ("team", 2)):
         f.decide(s, t)
     f.decide("autopilot_on", 5)
     check(f.decide("autopilot_on", 14).key is None and f.decide("autopilot_on", 15).key == bh.ESCAPE,
           "at 3× speed, 30 s of game time take 10 s")
-    w = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_s=30))
+    w = bh.Brain(neutral(order=["invasion"], enabled=["invasion"], invasion_s=30))
     check(all(w.decide("autopilot_on", t).point is None for t in (0, 40, 400)),
           "a battle the bot did not start (e.g. a dungeon already running) is left alone")
-    q = bh.Brain(bh.BotSettings(order=["quest"], enabled=["quest"]))
+    q = bh.Brain(neutral(order=["quest"], enabled=["quest"]))
     q.decide("team", 1)
     check(all(q.decide("autopilot_on", t).point is None for t in (2, 100, 1000)), "Quest: never leaves early")
     check(q.decide("dungeon_autopilot_off", 1001).point == bh.AUTO_BUTTON,
@@ -144,7 +153,7 @@ def main() -> int:
     check(bh.identify(mine) == "dialog", f"your own character talking, picture on the right ({bh.identify(mine)})")
     after = imaging.decode_png(open(os.path.join(data, "battle_after_dialog.png"), "rb").read())
     check(bh.identify(after) != "dialog", f"the battle after it is not a dialog ({bh.identify(after)})")
-    check(bh.Brain(bh.BotSettings()).decide("dialog", 1).point == bh.DIALOG_NEXT, "dialog: clicks the arrow")
+    check(bh.Brain(neutral()).decide("dialog", 1).point == bh.DIALOG_NEXT, "dialog: clicks the arrow")
     lobby_shot = imaging.decode_png(open(os.path.join(data, "wb_lobby.png"), "rb").read())
     check(bh.identify(lobby_shot) != "dialog", "the World Boss lobby is not a dialog")
 
@@ -160,30 +169,30 @@ def main() -> int:
         got = bh.zone(load(f"zone_{n:02d}.png"))
         check(got == want, f"zone map: zone {n}, arrows ◀ {want[1]} ▶ {want[2]} ({got})")
     check(bh.zone(lobby_shot)[0] is None, "no zone title in the lobby")
-    r = bh.Brain(bh.BotSettings(order=["raid"], enabled=["raid"], raid_number=3))
+    r = bh.Brain(neutral(order=["raid"], enabled=["raid"], raid_number=3))
     d = r.decide("raid_window", 1, dots=(1, 17))
     check(d.point == bh.CAROUSEL_NEXT and d.stays, f"raid 3 wanted, 1 shown: ▶ ({d.what})")
     check(r.decide("raid_window", 2, dots=(5, 17)).point == bh.CAROUSEL_PREV, "5 shown: ◀")
     check(r.decide("raid_window", 3, dots=(3, 17)).point == (575, 392), "3 shown: Summon")
-    r9 = bh.Brain(bh.BotSettings(order=["raid"], enabled=["raid"], raid_number=20))
+    r9 = bh.Brain(neutral(order=["raid"], enabled=["raid"], raid_number=20))
     d = r9.decide("raid_window", 1, dots=(4, 17))
     check(d.point is None and "only 17" in d.what and r9.decide("raid_window", 2, dots=(4, 17)).point == (575, 392),
           f"a raid that does not exist: says so once, then plays the one shown ({d.what})")
-    r0 = bh.Brain(bh.BotSettings(order=["raid"], enabled=["raid"]))
+    r0 = bh.Brain(neutral(order=["raid"], enabled=["raid"]))
     check(r0.decide("raid_window", 1, dots=(4, 17)).point == (575, 392), "raid 0 (default): the one shown")
-    w = bh.Brain(bh.BotSettings(order=["wb"], enabled=["wb"], wb_boss=2))
+    w = bh.Brain(neutral(order=["wb"], enabled=["wb"], wb_boss=2))
     check(w.decide("wb_carousel", 1, dots=(9, 11)).point == bh.CAROUSEL_PREV
           and w.decide("wb_carousel", 2, dots=(2, 11)).point == (575, 393), "World Boss 2: ◀ until it shows, then Summon")
-    z = bh.Brain(bh.BotSettings(order=["quest"], enabled=["quest"], quest_zone=12, quest_point=(500, 200)))
+    z = bh.Brain(neutral(order=["quest"], enabled=["quest"], quest_zone=12, quest_point=(500, 200)))
     check(z.decide("quest_map", 1, zone=(1, False, True)).point == bh.ZONE_NEXT, "zone 12 wanted, in zone 1: ▶")
     check(z.decide("quest_map", 2, zone=(20, True, False)).point == bh.ZONE_PREV, "in zone 20: ◀")
     check(z.decide("quest_map", 3, zone=(None, True, True)).point == bh.ZONE_PREV, "an unknown zone: ◀ toward the known ones")
     check(z.decide("quest_map", 4, zone=(12, True, True)).point == (500, 200), "in zone 12: the dungeon")
-    z2 = bh.Brain(bh.BotSettings(order=["quest"], enabled=["quest"], quest_zone=18))
+    z2 = bh.Brain(neutral(order=["quest"], enabled=["quest"], quest_zone=18))
     d = z2.decide("quest_map", 1, zone=(15, True, False))
     check(d.point is None and "not open" in d.what and z2.decide("quest_map", 2, zone=(15, True, False)).point == (430, 300),
           f"a zone not open yet: says so once, then plays where it is ({d.what})")
-    check(bh.Brain(bh.BotSettings(order=["raid", "quest"], enabled=["raid", "quest"], quest_zone=5))
+    check(bh.Brain(neutral(order=["raid", "quest"], enabled=["raid", "quest"], quest_zone=5))
           .decide("quest_map", 1, zone=(1, False, True)).point == (772, 75), "zone map while playing Raid: close it")
     s = bh.BotSettings.from_dict({"raid_number": 3, "wb_boss": 99, "quest_zone": 40})
     check((s.raid_number, s.wb_boss, s.quest_zone) == (3, 30, 20), "raid / boss / zone settings are kept in range")
@@ -203,7 +212,7 @@ def main() -> int:
     def info(name):
         img = load(name)
         return bh.look_closer(img, bh.identify(img))
-    g = bh.Brain(bh.BotSettings(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=13470))
+    g = bh.Brain(neutral(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=13470))
     d = g.decide("gauntlet_window", 1, **info("gauntlet_window.png"))
     check(d.point == bh.FIELD_OPEN, f"difficulty 14,578 set, 13,470 wanted: opens the list ({d.what})")
     d = g.decide("pick_list", 2, **info("gauntlet_ranges.png"))
@@ -211,52 +220,56 @@ def main() -> int:
     d = g.decide("pick_list", 3, **info("gauntlet_values_top.png"))
     check(d.point == bh.list_row_center(2) and g.picking is None, f"13,494 – 13,454 shown: clicks 13,474 ({d.what})")
     check(g.decide("gauntlet_window", 4, field=13474).point == (584, 292), "then Play")
-    g4 = bh.Brain(bh.BotSettings(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=13020))
+    g4 = bh.Brain(neutral(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=13020))
     g4.decide("gauntlet_window", 1, field=14578)
     g4.decide("pick_list", 2, **info("gauntlet_ranges.png"))
     d = g4.decide("pick_list", 3, **info("gauntlet_values_top.png"))
     check(d.point == bh.LIST_CLOSE and "too far down" in d.what,
           f"13,020 is not among the rows shown: closes the list ({d.what})")
     check(g4.decide("gauntlet_window", 4, field=14578).point == (584, 292), "and plays as set, without trying again")
-    g6 = bh.Brain(bh.BotSettings(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=5000))
+    g6 = bh.Brain(neutral(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=5000))
     g6.decide("gauntlet_window", 1, field=14578)
     d = g6.decide("pick_list", 2, **info("gauntlet_ranges.png"))
     check(d.point == bh.LIST_CLOSE, f"a range below the ones shown: closes the list ({d.what})")
-    g7 = bh.Brain(bh.BotSettings(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=99999))
+    g7 = bh.Brain(neutral(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=99999))
     g7.decide("gauntlet_window", 1, field=14578)
     check(g7.decide("pick_list", 2, **info("gauntlet_ranges.png")).point == bh.list_row_center(0)
           and g7.decide("pick_list", 3, **info("gauntlet_values_top.png")).point == bh.list_row_center(0),
           "above the hardest: the hardest range, its highest value")
-    g5 = bh.Brain(bh.BotSettings(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=13470))
+    g5 = bh.Brain(neutral(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=13470))
     g5.decide("gauntlet_window", 1, field=14578)
     g5.decide("pick_list", 2, **info("gauntlet_ranges.png"))
     g5.decide("pick_list", 3, **info("gauntlet_values_top.png"))
     d = g5.decide("gauntlet_window", 4, field=13434)
     check(d.point is None and "13,434" in d.what and g5.decide("gauntlet_window", 5, field=13434).point == (584, 292),
           f"the game set another value than clicked: says so once, then plays ({d.what})")
-    g2 = bh.Brain(bh.BotSettings(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=14580))
+    g2 = bh.Brain(neutral(order=["gauntlet"], enabled=["gauntlet"], gauntlet_difficulty=14580))
     check(g2.decide("gauntlet_window", 1, field=14578).point == (584, 292), "within 10 of the wanted one: Play at once")
-    t = bh.Brain(bh.BotSettings(order=["gauntlet"], enabled=["gauntlet"], trials_difficulty=500))
+    t = bh.Brain(neutral(order=["gauntlet"], enabled=["gauntlet"], trials_difficulty=500))
     check(t.decide("trials_window", 1, field=900).point == bh.FIELD_OPEN and t.decide("gauntlet_window", 2, field=900).point
           == (584, 292), "Trials has its own setting (Gauntlet left as it is)")
-    v = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_wave=55))
+    v = bh.Brain(neutral(order=["invasion"], enabled=["invasion"], invasion_wave=55))
     check(v.decide("invasion_window", 1, **info("invasion_window.png")).point == bh.FIELD_OPEN, "wave 58 set, 55 wanted: opens")
     d = v.decide("pick_list", 2, **info("wave_list.png"))
     check(d.point == bh.list_row_center(3), f"58 – 54 shown: clicks wave 55 ({d.what})")
-    v3 = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_wave=30))
+    v3 = bh.Brain(neutral(order=["invasion"], enabled=["invasion"], invasion_wave=30))
     v3.decide("invasion_window", 1, field=58)
     d = v3.decide("pick_list", 2, **info("wave_list.png"))
     check(d.point == bh.LIST_CLOSE, f"wave 30 is not among the rows shown: closes the list ({d.what})")
-    v2 = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_wave=70))
+    v2 = bh.Brain(neutral(order=["invasion"], enabled=["invasion"], invasion_wave=70))
     v2.decide("invasion_window", 1, field=58)
     d = v2.decide("pick_list", 2, **info("wave_list.png"))
     check(d.point == bh.list_row_center(0) and "highest" in d.what, f"wave 70 not open: takes the highest ({d.what})")
     check(v2.decide("invasion_window", 3, field=58).point == (584, 292), "and does not try again")
-    x = bh.Brain(bh.BotSettings())
+    x = bh.Brain(neutral())
     check(x.decide("pick_list", 1, **info("wave_list.png")).point == bh.LIST_CLOSE, "a list the bot did not open: closed")
 
     print("Costs and Quest dungeons")
     check(bh.BotSettings().pvp_cost == 5 and bh.BotSettings.from_dict({}).invasion_cost == 5, "costs default to 5")
+    d = bh.BotSettings()
+    check((d.order[:2], d.pvp_opponent, d.raid_number, d.wb_boss, d.quest_zone, d.gauntlet_difficulty,
+           d.invasion_wave) == (["wb", "raid"], 4, 16, 11, 12, 20002, 100) and bh.BotSettings.from_dict({}).quest_zone == 12,
+          "the defaults are your own settings (World Boss first, opponent 4, raid 16, zone 12, …)")
     check(bh.read_numbers(load("invasion_wave_60.png"), bh.FIELD_BOX) == (60,)
           and bh.read_numbers(load("invasion_cost_1.png"), bh.FIELD_BOX) == (62,), "reads the wave box (60, 62)")
     check([bh.read_numbers(load(f"invasion_cost_{n}.png"), bh.COST_BOX) for n in range(1, 6)]
@@ -264,22 +277,22 @@ def main() -> int:
     check(bh.identify(load("cost_list.png")) == "cost_list"
           and bh.look_closer(load("cost_list.png"), "cost_list")["rows"] == [(n,) for n in range(1, 6)],
           "the cost list (BADGES) is recognised and read")
-    c = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"]))
+    c = bh.Brain(neutral(order=["invasion"], enabled=["invasion"]))
     d = c.decide("invasion_window", 1, **info("invasion_cost_1.png"))
     check(d.point == bh.COST_OPEN, f"Invasion costs 1, 5 wanted: opens the cost list ({d.what})")
     d = c.decide("cost_list", 2, **info("cost_list.png"))
     check(d.point == bh.list_row_center(4), f"clicks 5 ({d.what})")
     check(c.decide("invasion_window", 3, **info("invasion_cost_5.png")).point == (584, 292), "then Play")
-    c0 = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_cost=0))
+    c0 = bh.Brain(neutral(order=["invasion"], enabled=["invasion"], invasion_cost=0))
     check(c0.decide("invasion_window", 1, field=62, cost=1).point == (584, 292), "cost 0: as set in the game")
-    c2 = bh.Brain(bh.BotSettings(order=["invasion"], enabled=["invasion"], invasion_wave=60))
+    c2 = bh.Brain(neutral(order=["invasion"], enabled=["invasion"], invasion_wave=60))
     check(c2.decide("invasion_window", 1, field=62, cost=1).point == bh.FIELD_OPEN, "the wave is set before the cost")
     check(bh.identify(load("dungeon_difficulty.png")) == "dungeon_difficulty", "a dungeon's difficulty window")
-    qd = bh.Brain(bh.BotSettings(order=["quest"], enabled=["quest"], quest_difficulty="hard"))
+    qd = bh.Brain(neutral(order=["quest"], enabled=["quest"], quest_difficulty="hard"))
     check(qd.decide("dungeon_difficulty", 1).point == (426, 251), "Quest: clicks Hard")
-    check(bh.Brain(bh.BotSettings(order=["raid", "quest"], enabled=["raid", "quest"])).decide(
+    check(bh.Brain(neutral(order=["raid", "quest"], enabled=["raid", "quest"])).decide(
         "dungeon_difficulty", 1).point == bh.DUNGEON_DIFFICULTY_CLOSE, "not playing Quest: closes it")
-    qp = bh.Brain(bh.BotSettings(order=["quest"], enabled=["quest"], quest_points={"12": (240, 300)}))
+    qp = bh.Brain(neutral(order=["quest"], enabled=["quest"], quest_points={"12": (240, 300)}))
     check(qp.decide("quest_map", 1, zone=(12, True, True)).point == (240, 300)
           and qp.decide("quest_map", 2, zone=(5, True, True)).point == (430, 300),
           "the dungeon picked for the zone, else the general point")
@@ -297,13 +310,13 @@ def main() -> int:
     joined = imaging.Image(lobby.width, lobby.height, bytes(joined))
     check(bh.wb_team(joined) == (2, 4), f"a second player joins ({bh.wb_team(joined)})")
     check(bh.wb_team(page_with("wb_start", "wb_private")) == (0, 0), "no team rows: nothing counted")
-    g = bh.Brain(bh.BotSettings(order=["wb"], enabled=["wb"], wb_players=2))
+    g = bh.Brain(neutral(order=["wb"], enabled=["wb"], wb_players=2))
     d = g.decide("wb_lobby", 1, bh.wb_team(lobby))
     check(d.point is None and "1 of 2" in d.what, f"waits for 2 players ({d.what})")
     check(g.decide("wb_lobby", 2, bh.wb_team(joined)).point == (405, 491), "2 players: Start")
-    g5 = bh.Brain(bh.BotSettings(order=["wb"], enabled=["wb"], wb_players=5))
+    g5 = bh.Brain(neutral(order=["wb"], enabled=["wb"], wb_players=5))
     check(g5.decide("wb_lobby", 1, (4, 4)).point == (405, 491), "a team of 4 is full even if 5 were asked for")
-    g1 = bh.Brain(bh.BotSettings(order=["wb"], enabled=["wb"]))
+    g1 = bh.Brain(neutral(order=["wb"], enabled=["wb"]))
     check(g1.decide("wb_lobby", 1, (1, 4)).point == (405, 491), "1 player (the default): Start at once")
     s = bh.BotSettings.from_dict({"wb_players": 9, "battle_speed": 0})
     check((s.wb_players, s.battle_speed) == (5, 1) and bh.BotSettings.from_dict(s.to_dict()) == s,
